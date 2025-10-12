@@ -1,0 +1,399 @@
+<!doctype html>
+<html lang="it">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Popup - Inserimento testo</title>
+    <style>
+      :root {
+        --gap: 12px;
+        --radius: 10px;
+        --border: 1px solid #e3e3e3;
+        --muted: #6b7280;
+        --accent: #2563eb;
+      }
+
+      body {
+        margin: 0;
+        font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+        background: #fff;
+        color: #111827;
+      }
+
+      .container {
+        display: grid;
+        grid-template-rows: auto 1fr auto;
+        gap: var(--gap);
+        padding: 16px;
+        height: 100vh;
+        box-sizing: border-box;
+      }
+
+      .headerbar {
+        display: grid;
+        grid-template-columns: 1fr auto auto;
+        gap: 8px;
+        align-items: center;
+      }
+      .headerbar .group { display: contents; }
+      .headerbar select, .headerbar input[type="text"] {
+        padding: 8px 10px; border: 1px solid #d0d0d0; border-radius: 8px; font-size: 14px;
+      }
+
+      .title {
+        margin: 0;
+        font-size: 16px;
+      }
+
+      .hint {
+        color: var(--muted);
+        font-size: 12px;
+        margin-top: 2px;
+      }
+
+      textarea {
+        width: 100%;
+        height: 100%;
+        resize: none;
+        border-radius: var(--radius);
+        border: var(--border);
+        padding: 10px 12px;
+        font-size: 14px;
+        box-sizing: border-box;
+      }
+
+      .row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: var(--gap);
+      }
+
+      .actions { display: flex; gap: var(--gap); }
+
+      button {
+        font-size: 14px;
+        padding: 8px 14px;
+        border-radius: 8px;
+        border: 1px solid #d0d0d0;
+        background: #ffffff;
+        cursor: pointer;
+      }
+
+      button.primary {
+        background: var(--accent);
+        border-color: var(--accent);
+        color: #fff;
+      }
+
+      button:hover { filter: brightness(0.98); }
+
+      /* Notes overlay inside the popup */
+      .notes-overlay {
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.3);
+        display: none; /* toggled via .show */
+        align-items: center;
+        justify-content: center;
+        z-index: 10000;
+      }
+
+      .notes-overlay.show { display: flex; }
+
+      .notes-wrapper {
+        width: min(98vw, 960px);
+        height: min(92vh, 720px);
+        background: #fff;
+        border: 1px solid #e3e3e3;
+        border-radius: 10px;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.15);
+        overflow: hidden;
+      }
+
+      .notes-frame {
+        width: 100%;
+        height: 100%;
+        border: 0;
+        display: block;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div>
+        <h2 class="title">Seleziona o aggiungi un articolo (DOI)</h2>
+        <div class="hint">Seleziona il DOI nell'elenco o aggiungine uno nuovo. I pulsanti Nota/Dettagli useranno l'articolo selezionato nell'header.</div>
+      </div>
+
+      <div class="headerbar">
+        <div class="group">
+          <label class="hint" for="currentDoiSelect">Articolo corrente</label>
+          <select id="currentDoiSelect"></select>
+        </div>
+        <div class="group">
+          <input id="doiInput" type="text" placeholder="Aggiungi DOI (es. 10.1038/nphys1170)" />
+        </div>
+        <div class="group">
+          <button id="addDoiBtn" class="primary" type="button">Aggiungi/aggiorna DOI</button>
+        </div>
+      </div>
+
+      <div class="row">
+        <div class="hint">Azioni per l'articolo selezionato</div>
+        <div class="actions">
+          <button id="noteBtn" type="button" title="Aggiungi nota">Nota</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Notes overlay (secondo template isolato via iframe) -->
+    <div id="notesOverlay" class="notes-overlay" aria-hidden="true">
+      <div class="notes-wrapper" role="dialog" aria-modal="true" aria-label="Aggiungi nota">
+        <iframe id="notesFrame" class="notes-frame" src="notes-popup.html" title="Notes Popup"></iframe>
+      </div>
+    </div>
+
+    <!-- Details overlay rimosso: i dettagli ora sono su details.html -->
+
+    <script>
+      (function () {
+        const currentDoiSelect = document.getElementById('currentDoiSelect');
+        const doiInput = document.getElementById('doiInput');
+        const addDoiBtn = document.getElementById('addDoiBtn');
+        const noteBtn = document.getElementById('noteBtn');
+        const notesOverlay = document.getElementById('notesOverlay');
+        const notesFrame = document.getElementById('notesFrame');
+        
+
+        const DOI_REGEX = /^10\.\d{4,9}\/[\-._;()/:A-Z0-9]+$/i;
+
+        let lastDOI = null;
+        let lastCrossrefMessage = null; // Crossref message (data.message)
+        let lastCombined = null; // message + note
+        let dbAll = {}; // cache from GAS getAll
+
+        function setBusy(busy) {
+          saveBtn.disabled = !!busy;
+          saveBtn.textContent = busy ? 'Ricerca…' : 'Salva';
+        }
+
+        function logAllFields(obj, prefix = '') {
+          try {
+            console.log('[popup] Oggetto completo:', obj);
+            console.log('[popup] JSON formattato:\n' + JSON.stringify(obj, null, 2));
+          } catch (e) {
+            console.log('[popup] (fallito stringify) Oggetto:', obj);
+          }
+        }
+
+        async function fetchCrossrefByDOI(doi) {
+          const url = `https://api.crossref.org/works/${encodeURIComponent(doi)}`;
+          const res = await fetch(url, { headers: { 'Accept': 'application/json' } });
+          if (!res.ok) throw new Error(`Richiesta Crossref fallita: ${res.status}`);
+          const data = await res.json();
+          return data;
+        }
+
+        async function refreshDbAll() {
+          try {
+            dbAll = await DataService.getAll();
+          } catch (_) { dbAll = {}; }
+        }
+
+        function populateCurrentSelect() {
+          const dois = Object.keys(dbAll || {});
+          dois.sort((a,b)=>a.localeCompare(b));
+          currentDoiSelect.innerHTML = '';
+          for (const doi of dois) {
+            const opt = document.createElement('option');
+            opt.value = doi; opt.textContent = (dbAll[doi]?.title?.[0]) || doi;
+            currentDoiSelect.appendChild(opt);
+          }
+          if (lastDOI) {
+            const idx = dois.indexOf(lastDOI);
+            if (idx >= 0) currentDoiSelect.selectedIndex = idx;
+          }
+        }
+
+        async function selectDOI(doi) {
+          if (!doi) return;
+          lastDOI = doi;
+          if (dbAll[doi]) {
+            lastCrossrefMessage = dbAll[doi];
+          }
+          populateCurrentSelect();
+        }
+
+        addDoiBtn.addEventListener('click', async () => {
+          const doi = (doiInput.value || '').trim();
+          console.log('[popup] DOI inserito:', doi || '(vuoto)');
+          try { if (window.parent && window.parent !== window) window.parent.postMessage({ type: 'popup:save', text: doi }, '*'); } catch(_){}
+          if (!doi) { console.warn('[popup] Nessun DOI inserito'); return; }
+          if (!DOI_REGEX.test(doi)) { console.warn('[popup] DOI non valido. Esempio: 10.1038/nphys1170'); return; }
+          setBusy(true);
+          try {
+            const data = await fetchCrossrefByDOI(doi);
+            const message = data && data.message ? data.message : data;
+            console.log('[popup] Dati Crossref:');
+            logAllFields(message);
+            try { if (window.parent && window.parent !== window) window.parent.postMessage({ type: 'popup:crossref', doi, data: message }, '*'); } catch(_){}
+            lastDOI = doi; lastCrossrefMessage = message;
+            // salva base su server per renderlo selezionabile
+            await saveCombinedToServer(Object.assign({}, message));
+            await refreshDbAll();
+            populateCurrentSelect();
+            // seleziona l'opzione corrente
+            await selectDOI(doi);
+          } catch (err) {
+            console.error('[popup] Errore durante la ricerca Crossref:', err);
+          } finally { setBusy(false); }
+        });
+
+        currentDoiSelect.addEventListener('change', () => {
+          const doi = currentDoiSelect.value || '';
+          if (doi) selectDOI(doi);
+        });
+
+        // Optional: Ctrl/Cmd+Enter to save
+        doiInput.addEventListener('keydown', (e) => { if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') { addDoiBtn.click(); }});
+
+        // Gestione Note: apertura overlay e comunicazione con iframe notes
+        function openNotes() {
+          notesOverlay.classList.add('show');
+          notesOverlay.setAttribute('aria-hidden', 'false');
+          // Attendi che l'iframe sia pronto e invia contesto
+          setTimeout(() => {
+            try {
+              notesFrame.contentWindow.postMessage({ type: 'note:init', doi: lastDOI }, '*');
+            } catch (_) {}
+          }, 50);
+        }
+
+        function closeNotes() {
+          notesOverlay.classList.remove('show');
+          notesOverlay.setAttribute('aria-hidden', 'true');
+        }
+
+        noteBtn.addEventListener('click', openNotes);
+        notesOverlay.addEventListener('click', (e) => {
+          if (e.target === notesOverlay) closeNotes();
+        });
+        window.addEventListener('keydown', (e) => {
+          if (e.key === 'Escape') closeNotes();
+        });
+
+        // Ricezione messaggi dall'iframe delle note
+        async function saveCombinedToServer(payload) {
+          try {
+            const doi = payload.DOI || payload.doi || null;
+            if (!doi) throw new Error('missing DOI in payload');
+            const out = await DataService.saveRecord(doi, payload);
+            console.log('[popup] Salvato su GAS:', out);
+          } catch (err) {
+            console.error('[popup] Salvataggio su GAS fallito:', err);
+          }
+        }
+
+        async function getBaseForDOI(doi) {
+          // Se coincide con l'ultimo DOI ricercato, usa i dati già presenti
+          if (doi && lastDOI && doi === lastDOI && lastCrossrefMessage) {
+            return Object.assign({}, lastCrossrefMessage);
+          }
+          // Altrimenti tenta di recuperare dal backend GAS
+          try {
+            const db = await DataService.getAll();
+            if (db && db[doi]) return Object.assign({}, db[doi]);
+          } catch (e) {
+            console.warn('[popup] Impossibile recuperare i dati locali per DOI', doi, e);
+          }
+          // Fallback minimo
+          return { DOI: doi };
+        }
+
+        window.addEventListener('message', (event) => {
+          if (!event || !event.data) return;
+          const { type } = event.data;
+          if (type === 'notes:open_edit') {
+            // Apertura programma di editing con precompilazione
+            openNotes();
+            const payload = { type: 'note:edit', doi: event.data.doi, note: event.data.note };
+            const send = () => {
+              try { notesFrame.contentWindow.postMessage(payload, '*'); } catch (_) {}
+            };
+            if (notesFrame.contentWindow) {
+              setTimeout(send, 20);
+            } else {
+              notesFrame.addEventListener('load', send, { once: true });
+            }
+            return;
+          }
+          if (type === 'note:save') {
+            const note = event.data.note || {};
+            const text = note.text || event.data.text || '';
+            const doiSel = (event.data.doi || lastDOI || '').trim();
+            if (!doiSel) {
+              console.warn('[popup] Nessun DOI selezionato per la nota');
+              return;
+            }
+
+            (async () => {
+              const base = await getBaseForDOI(doiSel);
+              // Normalizza in array user_notes, mantenendo eventuale vecchia struttura
+              const combined = Object.assign({}, base);
+              const notesArr = Array.isArray(combined.user_notes) ? combined.user_notes : [];
+              if (!Array.isArray(combined.user_notes) && combined.user_note) {
+                // Migra eventuale vecchio singolo user_note
+                notesArr.push(Object.assign({}, combined.user_note));
+                delete combined.user_note;
+              }
+
+              const enriched = Object.assign(
+                {
+                  id: (note && note.id) || (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : ('note_' + Date.now().toString(36))),
+                  doi: doiSel,
+                  text,
+                  createdAt: new Date().toISOString(),
+                },
+                note || {}
+              );
+
+              // Assicura tags/animals come array
+              if (!Array.isArray(enriched.tags)) enriched.tags = enriched.tags ? [String(enriched.tags)] : [];
+              if (!Array.isArray(enriched.animals)) enriched.animals = enriched.animals ? [String(enriched.animals)] : [];
+
+              const existingIdx = notesArr.findIndex(n => n && n.id && enriched.id && n.id === enriched.id);
+              if (existingIdx >= 0) {
+                notesArr[existingIdx] = enriched;
+              } else {
+                notesArr.push(enriched);
+              }
+              combined.user_notes = notesArr;
+
+              lastCombined = combined;
+              console.log('[popup] JSON combinato (DOI + note):');
+              logAllFields(combined);
+
+              // Invia anche al parent esterno
+              try {
+                if (window.parent && window.parent !== window) {
+                  window.parent.postMessage({ type: 'popup:crossref_note', doi: doiSel, data: combined }, '*');
+                }
+              } catch (_) {}
+
+              // Salva tramite backend GAS
+              saveCombinedToServer(combined);
+
+              closeNotes();
+            })();
+          } else if (type === 'note:cancel') {
+            closeNotes();
+          }
+        });
+
+        // Init load of known DOIs
+        (async () => { await refreshDbAll(); populateCurrentSelect(); if (currentDoiSelect.options.length>0) selectDOI(currentDoiSelect.value); })();
+      })();
+    </script>
+  </body>
+  </html>

@@ -1,0 +1,376 @@
+<!doctype html>
+<html lang="it">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Nota Articolo</title>
+    <link rel="stylesheet" href="project/assets/css/style.css" />
+    <style>
+      :root { --gap: 12px; --border: 1px solid #e5e7eb; --radius: 12px; }
+      body { margin: 2rem; font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; color: #111827; }
+      a { color: #2563eb; text-decoration: none; }
+      a:hover { text-decoration: underline; }
+      .header { display: grid; grid-template-columns: 1fr auto; gap: 12px; align-items: center; margin-bottom: 16px; }
+      .title { margin: 0; font-size: 22px; }
+      .sub { color: #6b7280; font-size: 13px; }
+      .toolbar { display: flex; gap: 8px; align-items: center; }
+      .btn { font-size: 14px; padding: 8px 12px; border-radius: 8px; border: 1px solid #d0d0d0; background: #fff; cursor: pointer; }
+      .btn:hover { background: #f6f6f6; }
+      .primary { background: #2563eb; border-color: #2563eb; color: #fff; }
+
+      .layout { display: grid; grid-template-columns: 1fr; gap: 16px; }
+      .panel { padding: 12px; border: var(--border); border-radius: var(--radius); background: #fff; display:grid; gap:12px; }
+      .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+      .grid-1 { display: grid; grid-template-columns: 1fr; gap: 10px; }
+      label { font-size: 12px; color: #374151; }
+      input[type="text"], input[type="url"], textarea, select { width: 100%; padding: 8px 10px; border: 1px solid #d0d0d0; border-radius: 8px; font-size: 14px; box-sizing: border-box; }
+      textarea { resize: vertical; }
+      .row { display: grid; gap: 6px; }
+    </style>
+  </head>
+  <body>
+    <div class="header">
+      <div>
+        <h1 class="title" id="pageTitle">Nuova nota</h1>
+        <div class="sub" id="pageSub"></div>
+      </div>
+      <div class="toolbar">
+        <a class="btn" href="index.html">← Torna</a>
+        <button id="saveBtn" class="btn primary">Salva nota</button>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="grid">
+        <div class="row">
+          <label for="doiSelect">Articolo (DOI)</label>
+          <select id="doiSelect"></select>
+        </div>
+        <div class="row">
+          <label for="typeInput">Tipo</label>
+          <input id="typeInput" type="text" list="typeList" placeholder="es. commento, riassunto, to-do" />
+          <datalist id="typeList">
+            <option value="commento"></option>
+            <option value="riassunto"></option>
+            <option value="promemoria"></option>
+            <option value="citazione"></option>
+            <option value="idea"></option>
+            <option value="domanda"></option>
+          </datalist>
+          <select id="typeSelect"></select>
+          <div id="typeChips" class="chips" style="margin-top:6px;"></div>
+        </div>
+      </div>
+
+      <div class="grid">
+        <div class="row">
+          <label for="tagsInput">Tag (separati da virgola)</label>
+          <input id="tagsInput" type="text" placeholder="es. energy, ecology, hydropower" />
+          <select id="tagsSelect"></select>
+          <div id="tagChips" class="chips" style="margin-top:6px;"></div>
+        </div>
+        <div class="row">
+          <label for="animalsInput">Animali (separati da virgola)</label>
+          <input id="animalsInput" type="text" placeholder="es. lupo, orso, lince" />
+          <select id="animalsSelect"></select>
+          <div id="animalChips" class="chips" style="margin-top:6px;"></div>
+        </div>
+      </div>
+
+      <div class="grid">
+        <div class="row">
+          <label for="urlInput">URL (con selezione testo)</label>
+          <input id="urlInput" type="url" placeholder="https://...#:~:text=..." />
+        </div>
+        <div class="row">
+          <label for="imageUrlInput">URL immagine</label>
+          <input id="imageUrlInput" type="url" placeholder="https://.../image.png" />
+        </div>
+      </div>
+
+      <div class="row">
+        <label for="commentInput">Commento</label>
+        <textarea id="commentInput" rows="2" placeholder="Commento aggiuntivo..."></textarea>
+      </div>
+
+      <div class="row">
+        <label for="noteText">Testo nota</label>
+        <div class="grid-1">
+          <label style="display:inline-flex; align-items:center; gap:8px; font-weight: normal;">
+            <input id="extractToggle" type="checkbox" checked />
+            Estrai testo da URL
+          </label>
+          <textarea id="noteText" rows="6" placeholder="Verrà estratto dal parametro #:~:text dell'URL" readonly></textarea>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      (function(){
+        const doiSelect = document.getElementById('doiSelect');
+        const pageTitle = document.getElementById('pageTitle');
+        const pageSub = document.getElementById('pageSub');
+        const saveBtn = document.getElementById('saveBtn');
+        const typeInput = document.getElementById('typeInput');
+        const typeSelect = document.getElementById('typeSelect');
+        const tagsInput = document.getElementById('tagsInput');
+        const urlInput = document.getElementById('urlInput');
+        const imageUrlInput = document.getElementById('imageUrlInput');
+        const animalsInput = document.getElementById('animalsInput');
+        const commentInput = document.getElementById('commentInput');
+        const noteText = document.getElementById('noteText');
+        const extractToggle = document.getElementById('extractToggle');
+        const typeChips = document.getElementById('typeChips');
+        const tagChips = document.getElementById('tagChips');
+        const animalChips = document.getElementById('animalChips');
+        const tagsSelect = document.getElementById('tagsSelect');
+        const animalsSelect = document.getElementById('animalsSelect');
+
+        const params = new URLSearchParams(location.search);
+        const initialDOI = params.get('doi') || '';
+        const noteId = params.get('id') || '';
+
+        let db = {};
+        let currentEntry = null;
+        let editingNote = null;
+        let facets = { types: [], tags: [], animals: [] };
+        const DEFAULT_TYPES = ['commento','riassunto','promemoria','citazione','idea','domanda'];
+
+        function splitCsv(str){ return (str||'').split(',').map(s=>s.trim()).filter(Boolean); }
+
+        function extractTextFragment(rawUrl){
+          try {
+            if (!rawUrl) return '';
+            const url = String(rawUrl);
+            const hashIndex = url.indexOf('#:~:');
+            if (hashIndex === -1) return '';
+            const fragment = url.slice(hashIndex + 4); // starts with :~:
+            // Build a URLSearchParams-like map for the text fragment part
+            // Expect pattern like :~:text=...&text=...
+            const paramsPart = fragment.replace(/^:\~:/, '');
+            const parts = paramsPart.split('&');
+            const texts = [];
+            for (const p of parts) {
+              const [k, vRaw] = p.split('=');
+              if (k !== 'text') continue;
+              // value can contain commas to denote contexts; decode fully
+              const v = decodeURIComponent((vRaw || '').replace(/\+/g, ' '));
+              if (!v) continue;
+              // If it contains prefix-/ -suffix markers, try to extract middle segment
+              // Common patterns: prefix-,EXACT,-suffix  or EXACT  or start,end
+              const mid = v.split(',-').length > 1 || v.split('-,').length > 1 ? v.replace(/.*-,\s*/,'').replace(/\s*,-.*/,'') : v;
+              texts.push(mid);
+            }
+            if (texts.length) return texts.join(' … ');
+            // Fallback: if there's a single text= param in the whole hash
+            const m = url.match(/#:~:text=([^&]+)/);
+            if (m && m[1]) return decodeURIComponent(m[1].replace(/\+/g,' '));
+            return '';
+          } catch (_) { return ''; }
+        }
+
+        let extractFromUrl = true;
+
+        function applyToggleState(){
+          extractFromUrl = !!extractToggle.checked;
+          noteText.readOnly = extractFromUrl;
+          noteText.placeholder = extractFromUrl
+            ? "Verrà estratto dal parametro #:~:text dell'URL"
+            : "Scrivi il testo della nota...";
+          if (extractFromUrl) {
+            refreshExtractedText(true);
+          }
+        }
+
+        function refreshExtractedText(force=false){
+          if (!extractFromUrl && !force) return;
+          const t = extractTextFragment(urlInput.value);
+          noteText.value = t || '';
+        }
+
+        function getTitle(entry){
+          if(!entry) return '';
+          const t = entry.title;
+          if(Array.isArray(t)&&t.length) return t.join(' — ');
+          if(typeof t==='string') return t;
+          return '';
+        }
+
+        async function loadAll(){
+          try {
+            db = await DataService.getAll();
+          } catch(e){ db = {}; }
+          computeFacets();
+          renderFacetChips();
+          renderFacetSelects();
+          renderTypeSelect();
+          populateDOIs();
+          if (initialDOI) {
+            const idx = Object.keys(db).indexOf(initialDOI);
+            if (idx >= 0) doiSelect.value = initialDOI;
+          }
+          onDOIChange();
+          if (noteId) prefillForEdit(noteId);
+        }
+
+        function computeFacets(){
+          const types = new Set(); const tags = new Set(); const animals = new Set();
+          for (const doi of Object.keys(db)){
+            const entry = db[doi];
+            const notes = Array.isArray(entry?.user_notes) ? entry.user_notes : (entry?.user_note ? [entry.user_note] : []);
+            for (const n of notes){
+              if (!n) continue;
+              if (n.type) types.add(String(n.type));
+              (Array.isArray(n.tags) ? n.tags : (n.tags ? [String(n.tags)] : [])).forEach(t=>tags.add(String(t)));
+              (Array.isArray(n.animals) ? n.animals : (n.animals ? [String(n.animals)] : [])).forEach(a=>animals.add(String(a)));
+            }
+          }
+          facets = {
+            types: Array.from(types).sort((a,b)=>a.localeCompare(b, undefined, {sensitivity:'base'})),
+            tags: Array.from(tags).sort((a,b)=>a.localeCompare(b, undefined, {sensitivity:'base'})),
+            animals: Array.from(animals).sort((a,b)=>a.localeCompare(b, undefined, {sensitivity:'base'})),
+          };
+        }
+
+        function appendCsv(inputEl, value){
+          const cur = (inputEl.value||'');
+          const list = cur ? cur.split(',').map(s=>s.trim()).filter(Boolean) : [];
+          if (!list.map(s=>s.toLowerCase()).includes(String(value).toLowerCase())) list.push(String(value));
+          inputEl.value = list.join(', ');
+        }
+
+        function renderFacetChips(){
+          typeChips.innerHTML = '';
+          facets.types.forEach(t=>{ const s=document.createElement('span'); s.className='chip'; s.textContent=t; s.onclick=()=>{ typeInput.value = t; }; typeChips.appendChild(s); });
+          tagChips.innerHTML = '';
+          facets.tags.forEach(t=>{ const s=document.createElement('span'); s.className='chip tag'; s.textContent=t; s.onclick=()=> appendCsv(tagsInput, t); tagChips.appendChild(s); });
+          animalChips.innerHTML = '';
+          facets.animals.forEach(a=>{ const s=document.createElement('span'); s.className='chip animal'; s.textContent=a; s.onclick=()=> appendCsv(animalsInput, a); animalChips.appendChild(s); });
+        }
+
+        function renderTypeSelect(){
+          const set = new Set([ ...DEFAULT_TYPES, ...facets.types ]);
+          const arr = Array.from(set).sort((a,b)=>a.localeCompare(b, undefined, {sensitivity:'base'}));
+          typeSelect.innerHTML = '';
+          const empty = document.createElement('option'); empty.value=''; empty.textContent='— Seleziona tipo —'; typeSelect.appendChild(empty);
+          arr.forEach(v => { const op = document.createElement('option'); op.value = v; op.textContent = v; typeSelect.appendChild(op); });
+          typeSelect.onchange = () => { typeInput.value = typeSelect.value || ''; };
+        }
+
+        function renderFacetSelects(){
+          // Tags select (appende al campo, poi resetta)
+          tagsSelect.innerHTML = '';
+          const optEmptyT = document.createElement('option'); optEmptyT.value=''; optEmptyT.textContent='— Aggiungi tag —'; tagsSelect.appendChild(optEmptyT);
+          facets.tags.forEach(t=>{ const op=document.createElement('option'); op.value=t; op.textContent=t; tagsSelect.appendChild(op); });
+          tagsSelect.onchange = () => { if (tagsSelect.value) { appendCsv(tagsInput, tagsSelect.value); tagsSelect.value = ''; } };
+
+          // Animals select (appende al campo, poi resetta)
+          animalsSelect.innerHTML = '';
+          const optEmptyA = document.createElement('option'); optEmptyA.value=''; optEmptyA.textContent='— Aggiungi animale —'; animalsSelect.appendChild(optEmptyA);
+          facets.animals.forEach(a=>{ const op=document.createElement('option'); op.value=a; op.textContent=a; animalsSelect.appendChild(op); });
+          animalsSelect.onchange = () => { if (animalsSelect.value) { appendCsv(animalsInput, animalsSelect.value); animalsSelect.value = ''; } };
+        }
+
+        function populateDOIs(){
+          const dois = Object.keys(db).sort((a,b)=>a.localeCompare(b));
+          doiSelect.innerHTML = '';
+          for (const doi of dois){
+            const opt = document.createElement('option');
+            opt.value = doi; opt.textContent = (db[doi]?.title?.[0]) || doi;
+            doiSelect.appendChild(opt);
+          }
+        }
+
+        function onDOIChange(){
+          const doi = doiSelect.value;
+          currentEntry = db[doi] || null;
+          pageTitle.textContent = noteId ? 'Modifica nota' : 'Nuova nota';
+          pageSub.textContent = doi ? ('DOI: ' + doi) : '';
+        }
+        doiSelect.addEventListener('change', onDOIChange);
+
+        function prefillForEdit(id){
+          if (!currentEntry) return;
+          const notes = Array.isArray(currentEntry.user_notes) ? currentEntry.user_notes : (currentEntry.user_note ? [currentEntry.user_note] : []);
+          const n = notes.find(x => x && x.id === id);
+          if (!n) return;
+          editingNote = n;
+          typeInput.value = n.type || '';
+          // Try to select in dropdown as well
+          if (typeSelect) {
+            const opts = Array.from(typeSelect.options).map(o=>o.value);
+            typeSelect.value = opts.includes(n.type) ? n.type : '';
+          }
+          tagsInput.value = Array.isArray(n.tags) ? n.tags.join(', ') : (n.tags || '');
+          urlInput.value = n.url || '';
+          imageUrlInput.value = n.imageUrl || '';
+          animalsInput.value = Array.isArray(n.animals) ? n.animals.join(', ') : (n.animals || '');
+          commentInput.value = n.comment || '';
+          // Re-estrai il testo dall'URL per coerenza; se vuoto ma esiste testo salvato, abilita editing manuale
+          refreshExtractedText(true);
+          if (!noteText.value && n.text) {
+            extractToggle.checked = false;
+            applyToggleState();
+            noteText.value = n.text || '';
+          }
+        }
+
+        urlInput.addEventListener('input', () => refreshExtractedText());
+        urlInput.addEventListener('change', () => refreshExtractedText());
+        extractToggle.addEventListener('change', applyToggleState);
+
+        async function save(){
+          const doi = doiSelect.value;
+          if (!doi) { alert('Seleziona un DOI'); return; }
+          if (extractFromUrl) {
+            if (!urlInput.value) { alert('Inserisci un URL contenente la selezione del testo (#:~:text=...)'); return; }
+            // Assicurati che il testo sia aggiornato dall'URL
+            refreshExtractedText(true);
+          }
+          try {
+            const full = await DataService.getAll();
+            const base = full[doi] || { DOI: doi };
+            const combined = Object.assign({}, base);
+            const notesArr = Array.isArray(combined.user_notes) ? combined.user_notes : [];
+            if (!Array.isArray(combined.user_notes) && combined.user_note) {
+              notesArr.push(Object.assign({}, combined.user_note));
+              delete combined.user_note;
+            }
+
+            const now = new Date().toISOString();
+            const enriched = Object.assign(
+              {
+                id: (editingNote && editingNote.id) || (crypto.randomUUID ? crypto.randomUUID() : ('note_' + Date.now().toString(36))),
+                doi,
+                text: extractFromUrl ? (noteText.value || extractTextFragment(urlInput.value) || '') : (noteText.value || ''),
+                type: (typeInput.value || '').trim() || null,
+                tags: splitCsv(tagsInput.value),
+                url: (urlInput.value || '').trim() || null,
+                imageUrl: (imageUrlInput.value || '').trim() || null,
+                comment: (commentInput.value || '').trim() || null,
+                animals: splitCsv(animalsInput.value),
+                createdAt: (editingNote && editingNote.createdAt) || now,
+              },
+              editingNote ? {} : {}
+            );
+
+            const idx = notesArr.findIndex(n => n && n.id === enriched.id);
+            if (idx >= 0) notesArr[idx] = enriched; else notesArr.push(enriched);
+            combined.user_notes = notesArr;
+
+            await DataService.saveRecord(doi, combined);
+            window.location.href = 'index.html';
+          } catch (e) {
+            console.error('Salvataggio nota fallito', e);
+            alert('Errore durante il salvataggio');
+          }
+        }
+
+        saveBtn.addEventListener('click', save);
+
+        applyToggleState();
+        loadAll();
+      })();
+    </script>
+  </body>
+  </html>

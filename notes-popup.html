@@ -1,0 +1,255 @@
+<!doctype html>
+<html lang="it">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Notes Popup</title>
+    <script src="project/assets/js/dataService.js"></script>
+    <style>
+      :root { --gap: 12px; --border: 1px solid #e3e3e3; --radius: 10px; }
+      body { margin: 0; font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; }
+      .container { display: grid; grid-template-rows: auto auto auto 1fr auto; gap: var(--gap); padding: 16px; height: 100vh; box-sizing: border-box; }
+      .title { margin: 0; font-size: 16px; }
+      .subtitle { color: #6b7280; font-size: 12px; margin-top: 2px; }
+      .row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+      select { padding: 6px 10px; border: 1px solid #d0d0d0; border-radius: 8px; font-size: 14px; }
+      textarea { width: 100%; height: 100%; resize: none; border: var(--border); border-radius: var(--radius); padding: 10px 12px; font-size: 14px; box-sizing: border-box; }
+      .actions { display: flex; justify-content: flex-end; gap: var(--gap); }
+      .meta-grid { display: grid; grid-template-columns: 1fr; gap: 8px; }
+      .meta-grid label { font-size: 12px; color: #374151; }
+      .meta-grid input[type="text"],
+      .meta-grid input[type="url"],
+      .meta-grid input[type="search"],
+      .meta-grid textarea { width: 100%; padding: 8px 10px; border: 1px solid #d0d0d0; border-radius: 8px; font-size: 14px; box-sizing: border-box; }
+      .small { font-size: 11px; color: #6b7280; }
+      button { font-size: 14px; padding: 8px 14px; border-radius: 8px; border: 1px solid #d0d0d0; background: #ffffff; cursor: pointer; }
+      button.primary { background: #2563eb; border-color: #2563eb; color: #fff; }
+      button:hover { filter: brightness(0.98); }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div>
+        <h2 class="title">Aggiungi nota</h2>
+        <div class="row">
+          <label for="doiSelect" class="subtitle">Seleziona DOI salvato:</label>
+          <select id="doiSelect"></select>
+        </div>
+        <div id="doiDisplay" class="subtitle">DOI: <span id="doiSpan">-</span></div>
+        <div id="titlePreview" class="subtitle"></div>
+      </div>
+      <div class="meta-grid">
+        <div>
+          <label for="typeInput">Tipo nota</label>
+          <input id="typeInput" type="text" list="typeList" placeholder="es. commento, riassunto, to-do" />
+          <datalist id="typeList">
+            <option value="commento"></option>
+            <option value="riassunto"></option>
+            <option value="promemoria"></option>
+            <option value="citazione"></option>
+            <option value="idea"></option>
+            <option value="domanda"></option>
+          </datalist>
+        </div>
+        <div>
+          <label for="tagsInput">Tag (separati da virgola)</label>
+          <input id="tagsInput" type="text" placeholder="es. energy, ecology, hydropower" />
+        </div>
+        <div>
+          <label for="urlInput">URL</label>
+          <input id="urlInput" type="url" placeholder="https://..." />
+        </div>
+        <div>
+          <label for="imageUrlInput">URL immagine</label>
+          <input id="imageUrlInput" type="url" placeholder="https://.../image.png" />
+        </div>
+        <div>
+          <label for="animalsInput">Animali (separati da virgola)</label>
+          <input id="animalsInput" type="text" placeholder="es. lupo, orso, lince" />
+          <div class="small">Verrà salvato come array di stringhe</div>
+        </div>
+        <div>
+          <label for="commentInput">Commento</label>
+          <textarea id="commentInput" rows="2" placeholder="Commento aggiuntivo..."></textarea>
+        </div>
+      </div>
+
+      <textarea id="noteText" placeholder="Scrivi il testo della nota..."></textarea>
+      <div class="actions">
+        <button id="cancelBtn" type="button">Annulla</button>
+        <button id="saveNoteBtn" class="primary" type="button">Salva nota</button>
+      </div>
+    </div>
+
+    <script>
+      (function () {
+        const doiSpan = document.getElementById('doiSpan');
+        const titlePreview = document.getElementById('titlePreview');
+        const doiSelect = document.getElementById('doiSelect');
+        const noteText = document.getElementById('noteText');
+        const saveNoteBtn = document.getElementById('saveNoteBtn');
+        const cancelBtn = document.getElementById('cancelBtn');
+        const typeInput = document.getElementById('typeInput');
+        const tagsInput = document.getElementById('tagsInput');
+        const urlInput = document.getElementById('urlInput');
+        const imageUrlInput = document.getElementById('imageUrlInput');
+        const animalsInput = document.getElementById('animalsInput');
+        const commentInput = document.getElementById('commentInput');
+
+        let currentDOI = null;
+        let db = {};
+        let pendingInitDOI = null;
+        let currentNoteId = null;
+
+        function titleFromEntry(entry) {
+          if (!entry) return '';
+          const t = entry.title;
+          if (Array.isArray(t) && t.length) return t.join(' — ');
+          if (typeof t === 'string') return t;
+          return '';
+        }
+
+        function setDOI(doi) {
+          currentDOI = doi || null;
+          doiSpan.textContent = currentDOI || '-';
+          const entry = currentDOI ? db[currentDOI] : null;
+          const t = titleFromEntry(entry);
+          titlePreview.textContent = t ? `Titolo: ${t}` : '';
+          if (!currentDOI) noteText.placeholder = 'Seleziona un DOI salvato o attendi il parent…';
+          // Se DOI viene forzato dal parent, disabilita la select
+          if (currentDOI) {
+            doiSelect.disabled = true;
+          } else {
+            doiSelect.disabled = false;
+          }
+        }
+
+        function setNote(note) {
+          currentNoteId = (note && note.id) || null;
+          noteText.value = (note && note.text) || '';
+          typeInput.value = (note && note.type) || '';
+          tagsInput.value = Array.isArray(note && note.tags) ? (note.tags || []).join(', ') : ((note && note.tags) || '');
+          urlInput.value = (note && note.url) || '';
+          imageUrlInput.value = (note && note.imageUrl) || '';
+          commentInput.value = (note && note.comment) || '';
+          animalsInput.value = Array.isArray(note && note.animals) ? (note.animals || []).join(', ') : ((note && note.animals) || '');
+        }
+
+        function populateSelect() {
+          const list = Object.entries(db).map(([doi, entry]) => ({ doi, title: titleFromEntry(entry) || doi }));
+          list.sort((a, b) => a.title.localeCompare(b.title, undefined, { sensitivity: 'base' }));
+          doiSelect.innerHTML = '';
+          for (const item of list) {
+            const opt = document.createElement('option');
+            opt.value = item.doi;
+            opt.textContent = item.title;
+            doiSelect.appendChild(opt);
+          }
+          if (pendingInitDOI) {
+            const i = list.findIndex(x => x.doi === pendingInitDOI);
+            if (i >= 0) doiSelect.selectedIndex = i;
+            setDOI(pendingInitDOI);
+            pendingInitDOI = null;
+          } else if (list.length) {
+            doiSelect.selectedIndex = 0;
+            setDOI(list[0].doi);
+          } else {
+            setDOI(null);
+          }
+        }
+
+        async function loadAll() {
+          try {
+            db = await (window.DataService ? DataService.getAll() : {});
+          } catch (e) {
+            console.warn('[notes] Impossibile caricare dal GAS:', e);
+            db = {};
+          }
+          populateSelect();
+        }
+
+        doiSelect.addEventListener('change', () => {
+          setDOI(doiSelect.value || null);
+        });
+
+        // Ricevi contesto iniziale (DOI) dal parent
+        window.addEventListener('message', (event) => {
+          if (!event || !event.data) return;
+          if (event.data.type === 'note:init') {
+            pendingInitDOI = event.data.doi || null;
+            if (Object.keys(db).length) {
+              // se abbiamo già la lista, applica subito
+              if (pendingInitDOI) {
+                const options = Array.from(doiSelect.options);
+                const idx = options.findIndex(o => o.value === pendingInitDOI);
+                if (idx >= 0) doiSelect.selectedIndex = idx;
+              }
+              setDOI(pendingInitDOI);
+              pendingInitDOI = null;
+            }
+          } else if (event.data.type === 'note:edit') {
+            // Prepara per modifica: imposta DOI e precompila campi
+            const doi = event.data.doi || null;
+            if (doi) {
+              pendingInitDOI = doi;
+              if (Object.keys(db).length) {
+                const options = Array.from(doiSelect.options);
+                const idx = options.findIndex(o => o.value === pendingInitDOI);
+                if (idx >= 0) doiSelect.selectedIndex = idx;
+                setDOI(pendingInitDOI);
+                pendingInitDOI = null;
+              }
+            }
+            setNote(event.data.note || null);
+          }
+        });
+
+        function splitCsv(str) {
+          return (str || '')
+            .split(',')
+            .map(s => s.trim())
+            .filter(Boolean);
+        }
+
+        function genId() {
+          try {
+            if (crypto && crypto.randomUUID) return crypto.randomUUID();
+          } catch (_) {}
+          return 'note_' + Date.now().toString(36) + '_' + Math.floor(Math.random() * 1e6).toString(36);
+        }
+
+        saveNoteBtn.addEventListener('click', () => {
+          const note = {
+            id: currentNoteId || genId(),
+            text: noteText.value || '',
+            type: (typeInput.value || '').trim() || null,
+            tags: splitCsv(tagsInput.value),
+            url: (urlInput.value || '').trim() || null,
+            imageUrl: (imageUrlInput.value || '').trim() || null,
+            comment: (commentInput.value || '').trim() || null,
+            animals: splitCsv(animalsInput.value),
+          };
+          try {
+            if (window.parent && window.parent !== window) {
+              window.parent.postMessage({ type: 'note:save', doi: currentDOI, note }, '*');
+            }
+          } catch (_) {}
+        });
+
+        cancelBtn.addEventListener('click', () => {
+          try {
+            if (window.parent && window.parent !== window) {
+              window.parent.postMessage({ type: 'note:cancel' }, '*');
+            }
+          } catch (_) {}
+        });
+
+        // Avvio: carica tutti i DOI salvati
+        window.addEventListener('load', () => {
+          noteText.focus();
+          loadAll();
+        });
+      })();
+    </script>
+  </body>
+  </html>

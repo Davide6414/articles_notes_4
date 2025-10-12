@@ -1,0 +1,9 @@
+{
+  "timeZone": "Europe/Rome",
+  "dependencies": {},
+  "exceptionLogging": "STACKDRIVER",
+  "oauthScopes": [
+    "https://www.googleapis.com/auth/drive.file"
+  ]
+}
+

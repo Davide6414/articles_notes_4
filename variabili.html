@@ -1,0 +1,335 @@
+<!doctype html>
+<html lang="it">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Variabili per Articolo</title>
+    <link rel="stylesheet" href="project/assets/css/style.css" />
+    <style>
+      :root { --gap: 12px; --border: 1px solid #e5e7eb; --radius: 12px; }
+      body { margin: 2rem; font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; color: #111827; }
+      a { color: #2563eb; text-decoration: none; }
+      a:hover { text-decoration: underline; }
+      .header { display: grid; grid-template-columns: 1fr auto; gap: 12px; align-items: center; margin-bottom: 16px; }
+      .title { margin: 0; font-size: 22px; }
+      .sub { color: #6b7280; font-size: 13px; }
+      .toolbar { display: flex; gap: 8px; align-items: center; }
+      .btn { font-size: 14px; padding: 8px 12px; border-radius: 8px; border: 1px solid #d0d0d0; background: #fff; cursor: pointer; }
+      .btn:hover { background: #f6f6f6; }
+      .primary { background: #2563eb; border-color: #2563eb; color: #fff; }
+      .panel { padding: 12px; border: var(--border); border-radius: var(--radius); background: #fff; display: grid; gap: 10px; }
+      .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+      .grid-1 { display: grid; grid-template-columns: 1fr; gap: 10px; }
+      label { font-size: 12px; color: #374151; }
+      input[type="text"], input[type="url"], input[type="number"], textarea, select { width: 100%; padding: 8px 10px; border: 1px solid #d0d0d0; border-radius: 8px; font-size: 14px; box-sizing: border-box; }
+      input[type="number"] { text-align: right; }
+      .row { display: grid; gap: 6px; }
+      .vars { display: grid; gap: 10px; }
+      .var-card { border: 1px solid #e5e7eb; border-radius: 10px; padding: 10px; display: grid; gap: 8px; }
+      .var-head { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 8px; }
+      .var-actions { display: flex; gap: 6px; }
+      .muted { color: #6b7280; font-size: 12px; }
+      .effects { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 8px 12px; }
+      .effect-box { font-size: 12px; color: #374151; background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px; padding: 8px; }
+      .split-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    </style>
+  </head>
+  <body>
+    <div class="header">
+      <div>
+        <h1 class="title" id="pageTitle">Variabili</h1>
+        <div class="sub" id="pageSub"></div>
+      </div>
+      <div class="toolbar">
+        <a class="btn" href="index.html">← Torna</a>
+        <button id="addVarBtn" class="btn">+ Variabile</button>
+        <button id="saveBtn" class="btn primary">Salva</button>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="grid">
+        <div class="row">
+          <label for="doiSelect">Articolo (DOI)</label>
+          <select id="doiSelect"></select>
+        </div>
+      </div>
+
+      <div id="vars" class="vars"></div>
+      <div class="row">
+        <label>Nomi variabili esistenti</label>
+        <div id="varNameChips" class="chips"></div>
+        <div class="small">Clicca per aggiungere una nuova variabile con quel nome.</div>
+      </div>
+    </div>
+
+    <script>
+      (function(){
+        const doiSelect = document.getElementById('doiSelect');
+        const pageTitle = document.getElementById('pageTitle');
+        const pageSub = document.getElementById('pageSub');
+        const addVarBtn = document.getElementById('addVarBtn');
+        const saveBtn = document.getElementById('saveBtn');
+        const varsEl = document.getElementById('vars');
+
+        const params = new URLSearchParams(location.search);
+        const initialDOI = params.get('doi') || '';
+
+        let db = {};
+        let currentEntry = null;
+        let items = [];
+        let facets = { units: [], varNames: [] };
+
+        function labelSuffixes(list){
+          const map = new Map(); // name -> count
+          const labels = new Map(); // index -> label
+          list.forEach((it, i) => {
+            const key = (it.name || '').trim().toLowerCase();
+            const c = (map.get(key) || 0) + 1; map.set(key, c);
+            labels.set(i, c);
+          });
+          // compute per-name totals to decide suffixes for duplicates
+          const totals = new Map();
+          list.forEach((it) => {
+            const key = (it.name || '').trim().toLowerCase();
+            totals.set(key, (totals.get(key) || 0) + 1);
+          });
+          // produce display names
+          return list.map((it, i) => {
+            const base = it.name || '';
+            const key = (it.name || '').trim().toLowerCase();
+            const total = totals.get(key) || 0;
+            if (total <= 1 || !base) return base;
+            const idx = labels.get(i) || 1;
+            const letter = String.fromCharCode('a'.charCodeAt(0) + (idx - 1));
+            return `${base} (${letter})`;
+          });
+        }
+
+        function getTitle(entry){
+          if(!entry) return '';
+          const t = entry.title;
+          if(Array.isArray(t)&&t.length) return t.join(' — ');
+          if(typeof t==='string') return t;
+          return '';
+        }
+
+        async function loadAll(){
+          try { db = await DataService.getAll(); } catch(e){ db = {}; }
+          computeFacets();
+          populateDOIs();
+          if (initialDOI && db[initialDOI]) doiSelect.value = initialDOI;
+          onDOIChange();
+        }
+
+        function populateDOIs(){
+          const dois = Object.keys(db).sort((a,b)=>a.localeCompare(b));
+          doiSelect.innerHTML = '';
+          for (const doi of dois){
+            const opt = document.createElement('option');
+            opt.value = doi; opt.textContent = (db[doi]?.title?.[0]) || doi;
+            doiSelect.appendChild(opt);
+          }
+        }
+
+        function computeFacets(){
+          const units = new Set(); const varNames = new Set();
+          for (const doi of Object.keys(db)){
+            const entry = db[doi];
+            const arr = Array.isArray(entry?.dati_variabili) ? entry.dati_variabili : [];
+            for (const it of arr){
+              if (it.unit) units.add(String(it.unit));
+              if (it.name) varNames.add(String(it.name));
+            }
+          }
+          facets = { units: Array.from(units).sort((a,b)=>a.localeCompare(b, undefined, {sensitivity:'base'})), varNames: Array.from(varNames).sort((a,b)=>a.localeCompare(b, undefined, {sensitivity:'base'})) };
+          renderFacetChips();
+        }
+
+        function renderFacetChips(){
+          const varNameChips = document.getElementById('varNameChips');
+          varNameChips.innerHTML = '';
+          facets.varNames.forEach(n => { const s=document.createElement('span'); s.className='chip'; s.textContent=n; s.onclick=()=>{ items.push({ id: uuid(), name: n, unit: '', meta: false, simple:{value:'',sd:'',n:''}, control:{mean:'',sd:'',n:''}, impacted:{mean:'',sd:'',n:''}, effects:{}, note: 'no note' }); renderList(); }; varNameChips.appendChild(s); });
+        }
+
+        function onDOIChange(){
+          const doi = doiSelect.value;
+          currentEntry = db[doi] || null;
+          pageTitle.textContent = 'Variabili';
+          pageSub.textContent = doi ? ('DOI: ' + doi) : '';
+          items = Array.isArray(currentEntry?.dati_variabili) ? JSON.parse(JSON.stringify(currentEntry.dati_variabili)) : [];
+          // ensure default note for display
+          items.forEach(it => { if (it.note == null || it.note === '') it.note = 'no note'; });
+          renderList();
+        }
+        doiSelect.addEventListener('change', onDOIChange);
+
+        function uuid(){ try{ return crypto.randomUUID(); } catch(_){ return 'var_' + Date.now().toString(36) + '_' + Math.floor(Math.random()*1e6).toString(36);} }
+
+        function addEmpty(){
+          items.push({ id: uuid(), name: '', unit: '', meta: false, simple: { value: '', sd: '', n: '' }, control: { mean: '', sd: '', n: '' }, impacted: { mean: '', sd: '', n: '' }, effects: {}, note: 'no note' });
+          renderList();
+        }
+        addVarBtn.addEventListener('click', addEmpty);
+
+        function numberOrNull(v){ const x = parseFloat(v); return isFinite(x) ? x : null; }
+
+        function computeEffects(it){
+          const out = {};
+          if (it.meta) {
+            const mc = numberOrNull(it.control.mean);
+            const sc = numberOrNull(it.control.sd);
+            const nc = numberOrNull(it.control.n);
+            const mt = numberOrNull(it.impacted.mean);
+            const st = numberOrNull(it.impacted.sd);
+            const nt = numberOrNull(it.impacted.n);
+            if (mc!=null && sc!=null && nc && mt!=null && st!=null && nt) {
+              // Pooled SD
+              const sp2 = (((nc-1)*(sc*sc)) + ((nt-1)*(st*st))) / ((nc+nt)-2);
+              const sp = Math.sqrt(Math.max(sp2, 0));
+              if (sp>0) {
+                const d = (mt - mc) / sp;
+                const J = 1 - (3/(4*(nc+nt) - 9));
+                const g = J * d;
+                const var_d = (nc+nt)/(nc*nt) + (d*d)/(2*(nc+nt - 2));
+                const var_g = J*J * var_d;
+                out.smd_g = g;
+                out.var_g = var_g;
+              }
+              if (mc>0 && mt>0) {
+                const lnrr = Math.log(mt/mc);
+                const var_lnrr = (st*st)/(nt*mt*mt) + (sc*sc)/(nc*mc*mc);
+                out.lnrr = lnrr;
+                out.var_lnrr = var_lnrr;
+              }
+            }
+          }
+          it.effects = out;
+        }
+
+        function renderList(){
+          varsEl.innerHTML = '';
+          if (!items.length) {
+            const empty = document.createElement('div'); empty.className='muted'; empty.textContent = 'Nessuna variabile. Clicca "+ Variabile" per aggiungerne una.'; varsEl.appendChild(empty); return;
+          }
+          const labels = labelSuffixes(items);
+          items.forEach((it, idx) => {
+            computeEffects(it);
+            const card = document.createElement('div'); card.className = 'var-card';
+            const head = document.createElement('div'); head.className = 'var-head';
+            const left = document.createElement('div'); left.className = 'grid';
+
+            // Name
+            const nameRow = document.createElement('div'); nameRow.className='row';
+            nameRow.appendChild(Object.assign(document.createElement('label'), { textContent:'Nome variabile' }));
+            const nameIn = Object.assign(document.createElement('input'), { type:'text', value: it.name || '' }); nameIn.oninput = () => it.name = nameIn.value; nameRow.appendChild(nameIn);
+            const nameLbl = document.createElement('div'); nameLbl.className = 'muted'; nameLbl.textContent = labels[idx] ? `Etichetta: ${labels[idx]}` : '';
+            nameRow.appendChild(nameLbl);
+            left.appendChild(nameRow);
+
+            // Unit
+            const unitRow = document.createElement('div'); unitRow.className='row';
+            unitRow.appendChild(Object.assign(document.createElement('label'), { textContent:'Unità di misura' }));
+            const unitIn = Object.assign(document.createElement('input'), { type:'text', value: it.unit || '' }); unitIn.oninput = () => it.unit = unitIn.value; unitRow.appendChild(unitIn);
+            // unit suggestions (chips) from facets
+            const unitChips = document.createElement('div'); unitChips.className='chips'; unitChips.style.marginTop='6px';
+            facets.units.forEach(u => { const chip=document.createElement('span'); chip.className='chip'; chip.textContent=u; chip.onclick=()=>{ unitIn.value = u; it.unit = u; }; unitChips.appendChild(chip); });
+            unitRow.appendChild(unitChips);
+            left.appendChild(unitRow);
+
+            head.appendChild(left);
+
+            const actions = document.createElement('div'); actions.className='var-actions';
+            const metaWrap = document.createElement('label'); metaWrap.style.display='inline-flex'; metaWrap.style.alignItems='center'; metaWrap.style.gap='6px'; metaWrap.style.fontSize='12px';
+            const metaCb = Object.assign(document.createElement('input'), { type:'checkbox', checked: !!it.meta }); metaCb.onchange = () => { it.meta = metaCb.checked; renderList(); };
+            metaWrap.appendChild(metaCb); metaWrap.appendChild(document.createTextNode('Meta-analisi'));
+            actions.appendChild(metaWrap);
+            const delBtn = Object.assign(document.createElement('button'), { className:'btn', type:'button', textContent:'Rimuovi' });
+            delBtn.onclick = () => { items.splice(idx,1); renderList(); };
+            actions.appendChild(delBtn);
+            head.appendChild(actions);
+            card.appendChild(head);
+
+            // Note
+            const noteRow = document.createElement('div'); noteRow.className='row';
+            noteRow.appendChild(Object.assign(document.createElement('label'), { textContent:'Nota' }));
+            const noteIn = Object.assign(document.createElement('input'), { type:'text', value: it.note || 'no note' });
+            noteIn.oninput = () => { it.note = noteIn.value || 'no note'; };
+            noteRow.appendChild(noteIn);
+            card.appendChild(noteRow);
+
+            if (!it.meta) {
+              const simple = document.createElement('div'); simple.className='grid';
+              const r1 = document.createElement('div'); r1.className='row'; r1.appendChild(Object.assign(document.createElement('label'), { textContent:'Valore' }));
+              const vIn = Object.assign(document.createElement('input'), { type:'number', step:'any', value: it.simple?.value ?? '' }); vIn.oninput = () => { it.simple = it.simple||{}; it.simple.value = vIn.value; }; r1.appendChild(vIn);
+              const r2 = document.createElement('div'); r2.className='row'; r2.appendChild(Object.assign(document.createElement('label'), { textContent:'Deviazione standard (sd)' }));
+              const sdIn = Object.assign(document.createElement('input'), { type:'number', step:'any', value: it.simple?.sd ?? '' }); sdIn.oninput = () => { it.simple = it.simple||{}; it.simple.sd = sdIn.value; }; r2.appendChild(sdIn);
+              const r3 = document.createElement('div'); r3.className='row'; r3.appendChild(Object.assign(document.createElement('label'), { textContent:'n' }));
+              const nIn = Object.assign(document.createElement('input'), { type:'number', step:'1', value: it.simple?.n ?? '' }); nIn.oninput = () => { it.simple = it.simple||{}; it.simple.n = nIn.value; }; r3.appendChild(nIn);
+              simple.appendChild(r1); simple.appendChild(r2); simple.appendChild(r3);
+              card.appendChild(simple);
+            } else {
+              // meta layout
+              const metaBlock = document.createElement('div'); metaBlock.className='split-2';
+              const ctrl = document.createElement('div'); ctrl.className='grid-1';
+              ctrl.appendChild(Object.assign(document.createElement('div'), { className:'muted', textContent: 'Controllo' }));
+              const c1 = document.createElement('div'); c1.className='row'; c1.appendChild(Object.assign(document.createElement('label'), { textContent:'Media' })); const c1i = Object.assign(document.createElement('input'), { type:'number', step:'any', value: it.control?.mean ?? '' }); c1i.oninput = () => { it.control = it.control||{}; it.control.mean = c1i.value; computeEffects(it); refEffects.textContent = effectsText(it.effects); }; c1.appendChild(c1i);
+              const c2 = document.createElement('div'); c2.className='row'; c2.appendChild(Object.assign(document.createElement('label'), { textContent:'SD' })); const c2i = Object.assign(document.createElement('input'), { type:'number', step:'any', value: it.control?.sd ?? '' }); c2i.oninput = () => { it.control = it.control||{}; it.control.sd = c2i.value; computeEffects(it); refEffects.textContent = effectsText(it.effects); }; c2.appendChild(c2i);
+              const c3 = document.createElement('div'); c3.className='row'; c3.appendChild(Object.assign(document.createElement('label'), { textContent:'n' })); const c3i = Object.assign(document.createElement('input'), { type:'number', step:'1', value: it.control?.n ?? '' }); c3i.oninput = () => { it.control = it.control||{}; it.control.n = c3i.value; computeEffects(it); refEffects.textContent = effectsText(it.effects); }; c3.appendChild(c3i);
+              ctrl.appendChild(c1); ctrl.appendChild(c2); ctrl.appendChild(c3);
+
+              const trt = document.createElement('div'); trt.className='grid-1';
+              trt.appendChild(Object.assign(document.createElement('div'), { className:'muted', textContent: 'Impattata' }));
+              const t1 = document.createElement('div'); t1.className='row'; t1.appendChild(Object.assign(document.createElement('label'), { textContent:'Media' })); const t1i = Object.assign(document.createElement('input'), { type:'number', step:'any', value: it.impacted?.mean ?? '' }); t1i.oninput = () => { it.impacted = it.impacted||{}; it.impacted.mean = t1i.value; computeEffects(it); refEffects.textContent = effectsText(it.effects); }; t1.appendChild(t1i);
+              const t2 = document.createElement('div'); t2.className='row'; t2.appendChild(Object.assign(document.createElement('label'), { textContent:'SD' })); const t2i = Object.assign(document.createElement('input'), { type:'number', step:'any', value: it.impacted?.sd ?? '' }); t2i.oninput = () => { it.impacted = it.impacted||{}; it.impacted.sd = t2i.value; computeEffects(it); refEffects.textContent = effectsText(it.effects); }; t2.appendChild(t2i);
+              const t3 = document.createElement('div'); t3.className='row'; t3.appendChild(Object.assign(document.createElement('label'), { textContent:'n' })); const t3i = Object.assign(document.createElement('input'), { type:'number', step:'1', value: it.impacted?.n ?? '' }); t3i.oninput = () => { it.impacted = it.impacted||{}; it.impacted.n = t3i.value; computeEffects(it); refEffects.textContent = effectsText(it.effects); }; t3.appendChild(t3i);
+              trt.appendChild(t1); trt.appendChild(t2); trt.appendChild(t3);
+
+              metaBlock.appendChild(ctrl); metaBlock.appendChild(trt);
+              card.appendChild(metaBlock);
+
+              const effects = document.createElement('div'); effects.className='effects';
+              const refEffects = document.createElement('div'); refEffects.className='effect-box'; refEffects.textContent = effectsText(it.effects);
+              effects.appendChild(refEffects);
+              card.appendChild(effects);
+            }
+
+            varsEl.appendChild(card);
+          });
+        }
+
+        function effectsText(e){
+          const parts = [];
+          if (typeof e.smd_g === 'number') parts.push(`Hedges g: ${e.smd_g.toFixed(3)} (Var ${typeof e.var_g==='number'? e.var_g.toFixed(4) : '—'})`);
+          if (typeof e.lnrr === 'number') parts.push(`lnRR: ${e.lnrr.toFixed(3)} (Var ${typeof e.var_lnrr==='number'? e.var_lnrr.toFixed(4) : '—'})`);
+          if (!parts.length) return 'Inserisci media, sd e n per controllo e impattata per il calcolo.';
+          return parts.join(' • ');
+        }
+
+        async function save(){
+          const doi = doiSelect.value;
+          if (!doi) { alert('Seleziona un DOI'); return; }
+          try {
+            const full = await DataService.getAll();
+            const base = full[doi] || { DOI: doi };
+            // include labeled names
+            const labels = labelSuffixes(items);
+            const payload = JSON.parse(JSON.stringify(items)).map((it, i) => {
+              if (it == null || typeof it !== 'object') return it;
+              return Object.assign({}, it, { name_labeled: labels[i] || (it.name || '') , note: (it.note && it.note.trim()) ? it.note : 'no note' });
+            });
+            const combined = Object.assign({}, base, { dati_variabili: payload });
+            await DataService.saveRecord(doi, combined);
+            alert('Salvato');
+          } catch (e) {
+            console.error('Salvataggio fallito', e);
+            alert('Errore durante il salvataggio');
+          }
+        }
+        saveBtn.addEventListener('click', save);
+
+        loadAll();
+      })();
+    </script>
+  </body>
+  </html>

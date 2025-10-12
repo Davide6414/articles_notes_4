@@ -1,0 +1,405 @@
+<!doctype html>
+<html lang="it">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Dettagli Articolo</title>
+    <link rel="stylesheet" href="project/assets/css/style.css" />
+    <script src="project/assets/js/dataService.js"></script>
+    <style>
+      :root { --gap: 12px; --border: 1px solid #e5e7eb; --radius: 12px; }
+      body { margin: 2rem; font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; color: #111827; }
+      a { color: #2563eb; text-decoration: none; }
+      a:hover { text-decoration: underline; }
+      .header { display: grid; grid-template-columns: 1fr auto; gap: 12px; align-items: center; margin-bottom: 16px; }
+      .title { margin: 0; font-size: 22px; }
+      .sub { color: #6b7280; font-size: 13px; }
+      .btn { font-size: 14px; padding: 8px 12px; border-radius: 8px; border: 1px solid #d0d0d0; background: #fff; cursor: pointer; }
+      .btn:hover { background: #f6f6f6; }
+      .primary { background: #2563eb; border-color: #2563eb; color: #fff; }
+      .danger { background: #fee2e2; border-color: #fecaca; }
+      .layout { display: grid; grid-template-columns: 1fr; gap: 16px; }
+
+      /* View */
+      .panel { padding: 12px; border: var(--border); border-radius: var(--radius); background: #fff; }
+      .panel h3 { margin: 0 0 8px 0; font-size: 16px; }
+      .details-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px 16px; }
+      .details-row { font-size: 13px; }
+      .details-label { display: block; font-size: 12px; color: #6b7280; margin-bottom: 2px; }
+      .vars-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+      .vars-table th, .vars-table td { border: 1px solid #e5e7eb; padding: 6px 8px; }
+      .vars-table th { background: #f9fafb; text-align: left; }
+      .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+      .chip { font-size: 12px; padding: 6px 10px; border-radius: 9999px; border: 1px solid #d1d5db; background: #f8fafc; }
+
+      /* Edit */
+      .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+      .grid-1 { display: grid; grid-template-columns: 1fr; gap: 10px; }
+      label { font-size: 12px; color: #374151; }
+      input[type="text"], input[type="url"], input[type="number"], textarea, select { width: 100%; padding: 8px 10px; border: 1px solid #d0d0d0; border-radius: 8px; font-size: 14px; box-sizing: border-box; }
+      textarea { resize: vertical; }
+      .row { display: grid; gap: 6px; }
+      .vars { display: grid; gap: 8px; }
+      .var-row { display: grid; grid-template-columns: 1fr 1fr 1fr auto; gap: 6px; align-items: end; }
+      .chips-select { display: flex; flex-wrap: wrap; gap: 6px; }
+      .chip.pick { cursor: pointer; }
+      .chip.pick.active { background: #dbeafe; border-color: #bfdbfe; }
+      .actions { display: flex; gap: 8px; }
+      .toolbar { display: flex; gap: 8px; justify-content: flex-end; align-items: center; }
+    </style>
+  </head>
+  <body>
+    <div class="header">
+      <div>
+        <h1 class="title" id="pageTitle">Dettagli Articolo</h1>
+        <div class="sub" id="pageSub"></div>
+      </div>
+      <div class="toolbar">
+        <a class="btn" href="index.html">← Torna</a>
+        <button id="editBtn" class="btn">Modifica</button>
+        <button id="saveBtn" class="btn primary" style="display:none;">Salva</button>
+        <button id="cancelBtn" class="btn" style="display:none;">Annulla</button>
+      </div>
+    </div>
+
+    <div id="viewWrap" class="layout"></div>
+    <div id="editWrap" class="layout" style="display:none;"></div>
+
+    <script>
+      (function(){
+        const params = new URLSearchParams(location.search);
+        const doi = params.get('doi') || '';
+        const pageTitle = document.getElementById('pageTitle');
+        const pageSub = document.getElementById('pageSub');
+        const editBtn = document.getElementById('editBtn');
+        const saveBtn = document.getElementById('saveBtn');
+        const cancelBtn = document.getElementById('cancelBtn');
+        const viewWrap = document.getElementById('viewWrap');
+        const editWrap = document.getElementById('editWrap');
+
+        if (!doi) {
+          pageSub.textContent = 'DOI non specificato';
+        } else {
+          pageSub.textContent = 'DOI: ' + doi;
+        }
+
+        let entry = null; // record per DOI
+        let mode = 'view';
+
+        function setMode(m) {
+          mode = m;
+          const editing = mode === 'edit';
+          editWrap.style.display = editing ? '' : 'none';
+          saveBtn.style.display = editing ? '' : 'none';
+          cancelBtn.style.display = editing ? '' : 'none';
+          viewWrap.style.display = editing ? 'none' : '';
+          editBtn.style.display = editing ? 'none' : '';
+        }
+
+        function getTitle(e) {
+          if (!e) return '';
+          const t = e.title;
+          if (Array.isArray(t) && t.length) return t.join(' — ');
+          if (typeof t === 'string') return t;
+          return '';
+        }
+
+        async function load() {
+          try {
+            const db = await DataService.getAll();
+            entry = db[doi] || null;
+            pageTitle.textContent = getTitle(entry) || 'Dettagli Articolo';
+            renderView();
+            buildEdit();
+          } catch (e) {
+            console.warn('Errore caricamento dati dal GAS', e);
+          }
+        }
+
+        function row(label, value) {
+          if (value == null || value === '') return null;
+          const wrap = document.createElement('div');
+          wrap.className = 'details-row';
+          const l = document.createElement('span'); l.className = 'details-label'; l.textContent = label;
+          const v = document.createElement('div'); v.textContent = String(value);
+          wrap.appendChild(l); wrap.appendChild(v);
+          return wrap;
+        }
+
+        function renderView() {
+          viewWrap.innerHTML = '';
+          if (!entry) {
+            const empty = document.createElement('div'); empty.textContent = 'Nessun dato per questo DOI.'; viewWrap.appendChild(empty); return;
+          }
+          const d = entry.dettagli || {};
+
+          // Top block
+          const g1 = document.createElement('div'); g1.className = 'panel';
+          const g1grid = document.createElement('div'); g1grid.className = 'details-grid';
+          let anyTop = false;
+          for (const el of [ row('Ecosystem', d.ecosistema), row('Background', d.background), row('Main objective', d.main_objective), row('Sub-objective', d.sub_objective), row('Biological organization', d.biological_organization) ]) {
+            if (el) { g1grid.appendChild(el); anyTop = true; }
+          }
+          if (anyTop) { const h = document.createElement('h3'); h.textContent = 'Informazioni generali'; g1.appendChild(h); g1.appendChild(g1grid); viewWrap.appendChild(g1); }
+
+          // Methods
+          const methods = Array.isArray(d.methods) ? d.methods : (d.methods ? [String(d.methods)] : []);
+          if (methods.length) {
+            const p = document.createElement('div'); p.className = 'panel';
+            const h = document.createElement('h3'); h.textContent = 'Methods'; p.appendChild(h);
+            const chips = document.createElement('div'); chips.className = 'chips';
+            methods.forEach(m => { const c = document.createElement('span'); c.className = 'chip'; c.textContent = m; chips.appendChild(c); });
+            p.appendChild(chips);
+            viewWrap.appendChild(p);
+          }
+
+          // Temporal scale
+          const t = d.temporal_scale || {};
+          const tHas = (t.start && String(t.start).trim()) || (t.end && String(t.end).trim());
+          if (tHas) {
+            const p = document.createElement('div'); p.className = 'panel';
+            const h = document.createElement('h3'); h.textContent = 'Temporal scale'; p.appendChild(h);
+            const g = document.createElement('div'); g.className = 'details-grid';
+            for (const el of [ row('Start', t.start), row('End', t.end), row('Resolution', t.resolution) ]) { if (el) g.appendChild(el); }
+            p.appendChild(g); viewWrap.appendChild(p);
+          }
+
+          // Spatial scale
+          const s = d.spatial_scale || {};
+          const sHas = (s.place && String(s.place).trim()) || (s.lat && String(s.lat).trim()) || (s.long && String(s.long).trim()) || (s.description && String(s.description).trim());
+          if (sHas) {
+            const p = document.createElement('div'); p.className = 'panel';
+            const h = document.createElement('h3'); h.textContent = 'Spatial scale'; p.appendChild(h);
+            const g = document.createElement('div'); g.className = 'details-grid';
+            for (const el of [ row('Place', s.place), row('Lat', s.lat), row('Long', s.long), row('Description', s.description) ]) { if (el) g.appendChild(el); }
+            p.appendChild(g); viewWrap.appendChild(p);
+          }
+
+          // Variables
+          const vars = (Array.isArray(d.variables) ? d.variables : []).filter(v => (v && (String(v.dependent||'').trim() || String(v.independent||'').trim() || String(v.note||'').trim())));
+          if (vars.length) {
+            const p = document.createElement('div'); p.className = 'panel';
+            const h = document.createElement('h3'); h.textContent = 'Variables'; p.appendChild(h);
+            const table = document.createElement('table'); table.className = 'vars-table';
+            const thead = document.createElement('thead'); const trh = document.createElement('tr');
+            for (const th of ['Dependent', 'Independent', 'Nota']) { const el = document.createElement('th'); el.textContent = th; trh.appendChild(el); }
+            thead.appendChild(trh); table.appendChild(thead);
+            const tbody = document.createElement('tbody');
+            for (const v of vars) {
+              const tr = document.createElement('tr');
+              const td1 = document.createElement('td'); td1.textContent = v?.dependent || ''; tr.appendChild(td1);
+              const td2 = document.createElement('td'); td2.textContent = v?.independent || ''; tr.appendChild(td2);
+              const td3 = document.createElement('td'); td3.textContent = v?.note || ''; tr.appendChild(td3);
+              tbody.appendChild(tr);
+            }
+            table.appendChild(tbody);
+            p.appendChild(table);
+            viewWrap.appendChild(p);
+          }
+
+          // Main outputs
+          if (d.main_outputs && String(d.main_outputs).trim()) {
+            const p = document.createElement('div'); p.className = 'panel';
+            const h = document.createElement('h3'); h.textContent = 'Main outputs'; p.appendChild(h);
+            const wrap = row('Main outputs', d.main_outputs); if (wrap) p.appendChild(wrap);
+            viewWrap.appendChild(p);
+          }
+
+          // Comments
+          const c = d.commenti || {};
+          const cHas = (c.difetti && String(c.difetti).trim()) || (c.pregi && String(c.pregi).trim()) || (c.spunti && String(c.spunti).trim()) || (c.idee_future && String(c.idee_future).trim());
+          if (cHas) {
+            const p = document.createElement('div'); p.className = 'panel';
+            const h = document.createElement('h3'); h.textContent = 'Commenti'; p.appendChild(h);
+            const g = document.createElement('div'); g.className = 'details-grid';
+            for (const el of [ row('Difetti', c.difetti), row('Pregi', c.pregi), row('Spunti', c.spunti), row('Idee future', c.idee_future) ]) { if (el) g.appendChild(el); }
+            p.appendChild(g); viewWrap.appendChild(p);
+          }
+        }
+
+        // -------- Edit builder ---------
+        // Reuse the same controls as in details-popup
+        function splitCsv(str){ return (str||'').split(',').map(s=>s.trim()).filter(Boolean); }
+        const ECOSYSTEMS = ['freshwater','river','lake','reservoir','wetland','marine','coastal','estuary','forest','grassland','desert','mountain','urban','agricultural'];
+
+        function buildEdit(){
+          editWrap.innerHTML = '';
+          const d = (entry && entry.dettagli) || {};
+
+          const section1 = document.createElement('div'); section1.className = 'panel grid';
+          const ecoRow = document.createElement('div'); ecoRow.className = 'row';
+          ecoRow.appendChild(Object.assign(document.createElement('label'), { htmlFor: 'ecosystem', textContent: 'Ecosystem' }));
+          const ecosysHidden = Object.assign(document.createElement('input'), { id: 'ecosystem', type: 'text', style: 'display:none;' });
+          const ecosysChips = document.createElement('div'); ecosysChips.className = 'chips-select';
+          ecoRow.appendChild(ecosysHidden); ecoRow.appendChild(ecosysChips);
+
+          function renderEcoChips(selected){
+            ecosysChips.innerHTML='';
+            ECOSYSTEMS.forEach(name=>{
+              const chip = document.createElement('span'); chip.className = 'chip pick' + (selected===name?' active':''); chip.textContent = name; chip.tabIndex = 0;
+              const setVal = ()=>{ ecosysHidden.value=name; renderEcoChips(name); };
+              chip.addEventListener('click', setVal);
+              chip.addEventListener('keydown', (e)=>{ if(e.key==='Enter'||e.key===' '){e.preventDefault(); setVal();}});
+              ecosysChips.appendChild(chip);
+            });
+          }
+          ecosysHidden.value = d.ecosistema || '';
+          renderEcoChips(ecosysHidden.value || null);
+
+          const bgRow = document.createElement('div'); bgRow.className='row';
+          bgRow.appendChild(Object.assign(document.createElement('label'), { textContent: 'Background' }));
+          const bg = Object.assign(document.createElement('textarea'), { rows: 2, value: d.background || '' }); bgRow.appendChild(bg);
+
+          const moRow = document.createElement('div'); moRow.className='row';
+          moRow.appendChild(Object.assign(document.createElement('label'), { textContent: 'Main objective' }));
+          const mo = Object.assign(document.createElement('input'), { type:'text', value: d.main_objective || '' }); moRow.appendChild(mo);
+
+          const soRow = document.createElement('div'); soRow.className='row';
+          soRow.appendChild(Object.assign(document.createElement('label'), { textContent: 'Sub-objective' }));
+          const so = Object.assign(document.createElement('input'), { type:'text', value: d.sub_objective || '' }); soRow.appendChild(so);
+
+          const boRow = document.createElement('div'); boRow.className='row';
+          boRow.appendChild(Object.assign(document.createElement('label'), { textContent: 'Biological organization' }));
+          const bo = Object.assign(document.createElement('input'), { type:'text', value: d.biological_organization || '' }); boRow.appendChild(bo);
+
+          const methodsRow = document.createElement('div'); methodsRow.className='row';
+          methodsRow.appendChild(Object.assign(document.createElement('label'), { textContent: 'Methods (separati da virgola)' }));
+          const methodsInput = Object.assign(document.createElement('input'), { type:'text', value: Array.isArray(d.methods)? d.methods.join(', ') : (d.methods || '') }); methodsRow.appendChild(methodsInput);
+          const methodsChips = document.createElement('div'); methodsChips.className='chips'; methodsChips.style.marginTop = '6px'; methodsRow.appendChild(methodsChips);
+          (async () => {
+            try {
+              const dbAll = await DataService.getAll();
+              const set = new Set();
+              Object.values(dbAll).forEach(entry => {
+                const mm = (entry && entry.dettagli && entry.dettagli.methods) ? entry.dettagli.methods : [];
+                (Array.isArray(mm) ? mm : (mm ? [String(mm)] : [])).forEach(m => set.add(String(m)));
+              });
+              const arr = Array.from(set).sort((a,b)=>a.localeCompare(b, undefined, {sensitivity:'base'}));
+              const appendCsv = (val) => { const cur=(methodsInput.value||''); const list=cur?cur.split(',').map(s=>s.trim()).filter(Boolean):[]; if(!list.map(s=>s.toLowerCase()).includes(String(val).toLowerCase())) list.push(String(val)); methodsInput.value = list.join(', '); };
+              methodsChips.innerHTML = '';
+              arr.forEach(m => { const chip=document.createElement('span'); chip.className='chip'; chip.textContent=m; chip.onclick=()=>appendCsv(m); methodsChips.appendChild(chip); });
+            } catch (_) {}
+          })();
+
+          section1.appendChild(ecoRow); section1.appendChild(bgRow); section1.appendChild(moRow); section1.appendChild(soRow); section1.appendChild(boRow); section1.appendChild(methodsRow);
+          editWrap.appendChild(section1);
+
+          // Temporal
+          const sectionT = document.createElement('div'); sectionT.className = 'panel grid';
+          sectionT.appendChild(Object.assign(document.createElement('div'), { className:'row', innerHTML:'<strong>Temporal scale</strong>' }));
+          const modeRow = document.createElement('div'); modeRow.className='row';
+          modeRow.appendChild(Object.assign(document.createElement('label'), { textContent: 'Risoluzione' }));
+          const tMode = Object.assign(document.createElement('select'), {});
+          tMode.innerHTML = '<option value="month">Mesi</option><option value="year">Anni</option>';
+          modeRow.appendChild(tMode); sectionT.appendChild(modeRow);
+          const monthRow = document.createElement('div'); monthRow.className='row'; monthRow.innerHTML = '<label>Da/A (mesi)</label>';
+          const monthGrid = Object.assign(document.createElement('div'), { className:'grid', style:'grid-template-columns: 1fr 1fr; gap: 8px;' });
+          const tStartMonth = Object.assign(document.createElement('input'), { type:'month' });
+          const tEndMonth = Object.assign(document.createElement('input'), { type:'month' });
+          monthGrid.appendChild(tStartMonth); monthGrid.appendChild(tEndMonth); monthRow.appendChild(monthGrid);
+          const yearRow = document.createElement('div'); yearRow.className='row'; yearRow.style.display='none'; yearRow.innerHTML = '<label>Da/A (anni)</label>';
+          const yearGrid = Object.assign(document.createElement('div'), { className:'grid', style:'grid-template-columns: 1fr 1fr; gap: 8px;' });
+          const tStartYear = Object.assign(document.createElement('input'), { type:'number', inputMode:'numeric', placeholder:'YYYY' });
+          const tEndYear = Object.assign(document.createElement('input'), { type:'number', inputMode:'numeric', placeholder:'YYYY' });
+          yearGrid.appendChild(tStartYear); yearGrid.appendChild(tEndYear); yearRow.appendChild(yearGrid);
+          sectionT.appendChild(monthRow); sectionT.appendChild(yearRow);
+          editWrap.appendChild(sectionT);
+
+          function updateTRender(){ const res = tMode.value==='year'?'year':'month'; monthRow.style.display = res==='month'?'':'none'; yearRow.style.display = res==='year'?'':'none'; }
+          const ts = d.temporal_scale || {}; const res = (ts.resolution==='year'||ts.resolution==='month')?ts.resolution:(/^\d{4}-\d{2}$/.test(ts.start||'')?'month':'year');
+          tMode.value = res; updateTRender(); if (res==='month'){ tStartMonth.value=(ts.start||'').slice(0,7); tEndMonth.value=(ts.end||'').slice(0,7);} else { tStartYear.value=ts.start||''; tEndYear.value=ts.end||''; }
+          tMode.addEventListener('change', updateTRender);
+
+          // Spatial
+          const sectionS = document.createElement('div'); sectionS.className='panel grid';
+          sectionS.appendChild(Object.assign(document.createElement('div'), { className:'row', innerHTML:'<strong>Spatial scale</strong>' }));
+          const sPlace = Object.assign(document.createElement('input'), { type:'text', value:(d.spatial_scale||{}).place || '' });
+          const sLat = Object.assign(document.createElement('input'), { type:'text', value:(d.spatial_scale||{}).lat || '' });
+          const sLong = Object.assign(document.createElement('input'), { type:'text', value:(d.spatial_scale||{}).long || '' });
+          const sDesc = Object.assign(document.createElement('textarea'), { rows:2, value:(d.spatial_scale||{}).description || '' });
+          const sGrid = document.createElement('div'); sGrid.className='grid';
+          const sRow1 = document.createElement('div'); sRow1.className='row'; sRow1.appendChild(Object.assign(document.createElement('label'), { textContent:'Place' })); sRow1.appendChild(sPlace);
+          const sRow2 = document.createElement('div'); sRow2.className='row'; sRow2.appendChild(Object.assign(document.createElement('label'), { textContent:'Lat' })); sRow2.appendChild(sLat);
+          const sRow3 = document.createElement('div'); sRow3.className='row'; sRow3.appendChild(Object.assign(document.createElement('label'), { textContent:'Long' })); sRow3.appendChild(sLong);
+          const sRow4 = document.createElement('div'); sRow4.className='row'; sRow4.appendChild(Object.assign(document.createElement('label'), { textContent:'Description' })); sRow4.appendChild(sDesc);
+          sGrid.appendChild(sRow1); sGrid.appendChild(sRow2); sGrid.appendChild(sRow3); sGrid.appendChild(sRow4);
+          sectionS.appendChild(sGrid); editWrap.appendChild(sectionS);
+
+          // Variables
+          const sectionV = document.createElement('div'); sectionV.className='panel';
+          sectionV.appendChild(Object.assign(document.createElement('div'), { className:'row', innerHTML:'<strong>Variables</strong>' }));
+          const varsEl = document.createElement('div'); varsEl.className = 'vars'; sectionV.appendChild(varsEl);
+          const addVarBtn = Object.assign(document.createElement('button'), { className:'btn', type:'button', textContent:'+ Aggiungi variabile' }); sectionV.appendChild(addVarBtn);
+          function addVarRow(v={dependent:'',independent:'',note:''}){
+            const row = document.createElement('div'); row.className='var-row';
+            const dep = Object.assign(document.createElement('input'), { type:'text', placeholder:'Dependent', value:v.dependent||'' });
+            const indep = Object.assign(document.createElement('input'), { type:'text', placeholder:'Independent', value:v.independent||'' });
+            const note = Object.assign(document.createElement('input'), { type:'text', placeholder:'Nota', value:v.note||'' });
+            const del = Object.assign(document.createElement('button'), { className:'btn', type:'button', textContent:'Rimuovi' });
+            del.addEventListener('click', ()=> row.remove());
+            row.appendChild(dep); row.appendChild(indep); row.appendChild(note); row.appendChild(del);
+            varsEl.appendChild(row);
+          }
+          (Array.isArray(d.variables)?d.variables:[]).forEach(addVarRow);
+          addVarBtn.addEventListener('click', ()=> addVarRow());
+          editWrap.appendChild(sectionV);
+
+          // Outputs & comments
+          const sectionO = document.createElement('div'); sectionO.className='panel grid';
+          const moWrap = document.createElement('div'); moWrap.className='row'; moWrap.appendChild(Object.assign(document.createElement('label'), { textContent:'Main outputs' }));
+          const mainOutputs = Object.assign(document.createElement('textarea'), { rows:2, value: d.main_outputs || '' }); moWrap.appendChild(mainOutputs);
+          sectionO.appendChild(moWrap);
+
+          const cWrap = document.createElement('div'); cWrap.className='grid';
+          function mkComment(label, val){ const r=document.createElement('div'); r.className='row'; r.appendChild(Object.assign(document.createElement('label'),{textContent:label})); const ta=Object.assign(document.createElement('textarea'),{rows:2, value:val||''}); r.appendChild(ta); return {wrap:r, ta}; }
+          const cd = d.commenti || {};
+          const d1 = mkComment('Difetti', cd.difetti); const d2 = mkComment('Pregi', cd.pregi); const d3 = mkComment('Spunti', cd.spunti); const d4 = mkComment('Idee future', cd.idee_future);
+          cWrap.appendChild(d1.wrap); cWrap.appendChild(d2.wrap); cWrap.appendChild(d3.wrap); cWrap.appendChild(d4.wrap);
+          sectionO.appendChild(cWrap); editWrap.appendChild(sectionO);
+
+          // Save handler
+          function collectVars(){ const out=[]; for(const row of varsEl.querySelectorAll('.var-row')){ const [dep,indep,nt]=row.querySelectorAll('input'); out.push({dependent:dep.value||'', independent:indep.value||'', note:nt.value||''}); } return out; }
+          function payload(){
+            const resSel = tMode.value==='year' ? 'year' : 'month';
+            const start = resSel==='month' ? (tStartMonth.value||'') : (tStartYear.value||'');
+            const end   = resSel==='month' ? (tEndMonth.value||'') : (tEndYear.value||'');
+            return {
+              ecosistema: ecosysHidden.value || '',
+              background: bg.value || '',
+              main_objective: mo.value || '',
+              sub_objective: so.value || '',
+              biological_organization: bo.value || '',
+              methods: splitCsv(methodsInput.value),
+              temporal_scale: { start, end, resolution: resSel },
+              spatial_scale: { place: sPlace.value || '', lat: sLat.value || '', long: sLong.value || '', description: sDesc.value || '' },
+              variables: collectVars(),
+              main_outputs: mainOutputs.value || '',
+              commenti: { difetti: d1.ta.value || '', pregi: d2.ta.value || '', spunti: d3.ta.value || '', idee_future: d4.ta.value || '' },
+            };
+          }
+
+        saveBtn.onclick = async () => {
+          try {
+            const db = await DataService.getAll();
+            const base = db[doi] || { DOI: doi };
+            const combined = Object.assign({}, base, { dettagli: payload() });
+            await DataService.saveRecord(doi, combined);
+            setMode('view');
+            entry = combined;
+            renderView();
+          } catch (e) {
+            console.error('Salvataggio fallito', e);
+            alert('Errore durante il salvataggio');
+          }
+        };
+
+          cancelBtn.onclick = () => { setMode('view'); };
+        }
+
+        editBtn.onclick = () => setMode('edit');
+
+        load();
+      })();
+    </script>
+  </body>
+  </html>

@@ -1,0 +1,488 @@
+<!doctype html>
+<html lang="it">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Details Popup</title>
+    <style>
+      :root { --gap: 12px; --border: 1px solid #e3e3e3; --radius: 10px; }
+      body { margin: 0; font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; }
+      .container { display: grid; grid-template-rows: auto 1fr auto; gap: var(--gap); padding: 16px; height: 100vh; box-sizing: border-box; }
+      .title { margin: 0; font-size: 16px; }
+      .subtitle { color: #6b7280; font-size: 12px; margin-top: 2px; }
+      .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+      .grid-1 { display: grid; grid-template-columns: 1fr; gap: 10px; }
+      label { font-size: 12px; color: #374151; }
+      input[type="text"], input[type="url"], textarea { width: 100%; padding: 8px 10px; border: var(--border); border-radius: var(--radius); font-size: 14px; box-sizing: border-box; }
+      textarea { resize: vertical; }
+      .row { display: grid; gap: 6px; }
+      .vars { display: grid; gap: 8px; }
+      .var-row { display: grid; grid-template-columns: 1fr 1fr 1fr auto; gap: 6px; align-items: end; }
+      .btn { font-size: 12px; padding: 6px 10px; border-radius: 8px; border: 1px solid #d0d0d0; background: #ffffff; cursor: pointer; }
+      .btn:hover { background: #f6f6f6; }
+      .primary { background: #2563eb; border-color: #2563eb; color: #fff; }
+      .actions { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+      .section { padding: 10px; border: 1px solid #e5e7eb; border-radius: 12px; background: #fafafa; }
+      /* View mode styles */
+      .view-panel { display: grid; gap: 12px; }
+      .details-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px 16px; }
+      .details-row { font-size: 13px; color: #111827; }
+      .details-label { display: block; font-size: 12px; color: #6b7280; margin-bottom: 2px; }
+      .vars-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+      .vars-table th, .vars-table td { border: 1px solid #e5e7eb; padding: 6px 8px; }
+      .vars-table th { background: #f9fafb; text-align: left; }
+      /* Chips */
+      .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+      .chip { font-size: 12px; padding: 6px 10px; border-radius: 9999px; border: 1px solid #d1d5db; background: #f8fafc; cursor: pointer; }
+      .chip.active { background: #dbeafe; border-color: #bfdbfe; }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div>
+        <h2 class="title">Dettagli articolo</h2>
+        <div id="doiDisplay" class="subtitle">DOI: <span id="doiSpan">-</span></div>
+      </div>
+
+      <!-- VIEW PANEL -->
+      <div id="viewPanel" class="view-panel" style="overflow:auto; padding-right:2px;"></div>
+
+      <!-- EDIT PANEL -->
+      <div id="editPanel" class="grid-1" style="overflow:auto; padding-right: 2px; display:none;">
+        <div class="section grid">
+          <div class="row">
+            <label for="ecosystem">Ecosystem</label>
+            <input id="ecosystem" type="text" style="display:none;" />
+            <div id="ecosysChips" class="chips"></div>
+          </div>
+          <div class="row">
+            <label for="background">Background</label>
+            <textarea id="background" rows="2"></textarea>
+          </div>
+          <div class="row">
+            <label for="mainObjective">Main objective</label>
+            <input id="mainObjective" type="text" />
+          </div>
+          <div class="row">
+            <label for="subObjective">Sub-objective</label>
+            <input id="subObjective" type="text" />
+          </div>
+          <div class="row">
+            <label for="bioOrg">Biological organization</label>
+            <input id="bioOrg" type="text" />
+          </div>
+          <div class="row">
+            <label for="methodsInput">Methods (separati da virgola)</label>
+            <input id="methodsInput" type="text" placeholder="es. regression, bayesian, field survey" />
+          </div>
+        </div>
+
+        <div class="section">
+          <div class="row"><strong>Temporal scale</strong></div>
+          <div class="grid">
+            <div class="row">
+              <label for="tMode">Risoluzione</label>
+              <select id="tMode">
+                <option value="month">Mesi</option>
+                <option value="year">Anni</option>
+              </select>
+            </div>
+            <div class="row" id="tMonthRow">
+              <label>Da/A (mesi)</label>
+              <div class="grid" style="grid-template-columns: 1fr 1fr; gap: 8px;">
+                <input id="tStartMonth" type="month" />
+                <input id="tEndMonth" type="month" />
+              </div>
+            </div>
+            <div class="row" id="tYearRow" style="display:none;">
+              <label>Da/A (anni)</label>
+              <div class="grid" style="grid-template-columns: 1fr 1fr; gap: 8px;">
+                <input id="tStartYear" type="number" inputmode="numeric" placeholder="YYYY" />
+                <input id="tEndYear" type="number" inputmode="numeric" placeholder="YYYY" />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="section">
+          <div class="row"><strong>Spatial scale</strong></div>
+          <div class="grid">
+            <div class="row">
+              <label for="sPlace">Place</label>
+              <input id="sPlace" type="text" />
+            </div>
+            <div class="row">
+              <label for="sLat">Lat</label>
+              <input id="sLat" type="text" />
+            </div>
+            <div class="row">
+              <label for="sLong">Long</label>
+              <input id="sLong" type="text" />
+            </div>
+            <div class="row">
+              <label for="sDesc">Description</label>
+              <textarea id="sDesc" rows="2"></textarea>
+            </div>
+          </div>
+        </div>
+
+        <div class="section">
+          <div class="row"><strong>Variables</strong></div>
+          <div id="vars" class="vars"></div>
+          <div>
+            <button id="addVar" class="btn" type="button">+ Aggiungi variabile</button>
+          </div>
+        </div>
+
+        <div class="section grid">
+          <div class="row">
+            <label for="mainOutputs">Main outputs</label>
+            <textarea id="mainOutputs" rows="2"></textarea>
+          </div>
+        </div>
+
+        <div class="section grid">
+          <div class="row"><strong>Commenti</strong></div>
+          <div class="row">
+            <label for="cDifetti">Difetti</label>
+            <textarea id="cDifetti" rows="2"></textarea>
+          </div>
+          <div class="row">
+            <label for="cPregi">Pregi</label>
+            <textarea id="cPregi" rows="2"></textarea>
+          </div>
+          <div class="row">
+            <label for="cSpunti">Spunti</label>
+            <textarea id="cSpunti" rows="2"></textarea>
+          </div>
+          <div class="row">
+            <label for="cIdee">Idee future</label>
+            <textarea id="cIdee" rows="2"></textarea>
+          </div>
+        </div>
+      </div>
+
+      <div class="actions">
+        <div id="viewActions">
+          <button id="closeBtn" class="btn" type="button">Chiudi</button>
+          <button id="editBtn" class="btn primary" type="button">Modifica</button>
+        </div>
+        <div id="editActions" style="display:none; gap:8px;">
+          <button id="cancelEditBtn" class="btn" type="button">Annulla</button>
+          <button id="saveBtn" class="btn primary" type="button">Salva dettagli</button>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      (function() {
+        const doiSpan = document.getElementById('doiSpan');
+        const varsEl = document.getElementById('vars');
+        const addVarBtn = document.getElementById('addVar');
+        const closeBtn = document.getElementById('closeBtn');
+        const editBtn = document.getElementById('editBtn');
+        const cancelEditBtn = document.getElementById('cancelEditBtn');
+        const saveBtn = document.getElementById('saveBtn');
+        const viewPanel = document.getElementById('viewPanel');
+        const editPanel = document.getElementById('editPanel');
+        const viewActions = document.getElementById('viewActions');
+        const editActions = document.getElementById('editActions');
+
+        const ecosystem = document.getElementById('ecosystem');
+        const ecosysChips = document.getElementById('ecosysChips');
+        const background = document.getElementById('background');
+        const mainObjective = document.getElementById('mainObjective');
+        const subObjective = document.getElementById('subObjective');
+        const bioOrg = document.getElementById('bioOrg');
+        const tMode = document.getElementById('tMode');
+        const tMonthRow = document.getElementById('tMonthRow');
+        const tYearRow = document.getElementById('tYearRow');
+        const tStartMonth = document.getElementById('tStartMonth');
+        const tEndMonth = document.getElementById('tEndMonth');
+        const tStartYear = document.getElementById('tStartYear');
+        const tEndYear = document.getElementById('tEndYear');
+        const sPlace = document.getElementById('sPlace');
+        const sLat = document.getElementById('sLat');
+        const sLong = document.getElementById('sLong');
+        const sDesc = document.getElementById('sDesc');
+        const mainOutputs = document.getElementById('mainOutputs');
+        const methodsInput = document.getElementById('methodsInput');
+        const cDifetti = document.getElementById('cDifetti');
+        const cPregi = document.getElementById('cPregi');
+        const cSpunti = document.getElementById('cSpunti');
+        const cIdee = document.getElementById('cIdee');
+
+        let currentDOI = null;
+        let currentDetails = null;
+        let mode = 'view'; // 'view' | 'edit'
+
+        function setMode(m) {
+          mode = m;
+          const editing = mode === 'edit';
+          editPanel.style.display = editing ? '' : 'none';
+          editActions.style.display = editing ? 'flex' : 'none';
+          viewPanel.style.display = editing ? 'none' : '';
+          viewActions.style.display = editing ? 'none' : 'flex';
+        }
+
+        // Ecosystem chip picker
+        const ECOSYSTEMS = ['freshwater','river','lake','reservoir','wetland','marine','coastal','estuary','forest','grassland','desert','mountain','urban','agricultural'];
+        function renderEcosystemChips(selected) {
+          ecosysChips.innerHTML = '';
+          ECOSYSTEMS.forEach(name => {
+            const chip = document.createElement('span');
+            chip.className = 'chip' + (selected === name ? ' active' : '');
+            chip.textContent = name;
+            chip.tabIndex = 0;
+            const setVal = () => { ecosystem.value = name; renderEcosystemChips(name); };
+            chip.addEventListener('click', setVal);
+            chip.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setVal(); } });
+            ecosysChips.appendChild(chip);
+          });
+        }
+
+        // Temporal mode switcher
+        function updateTemporalModeUI() {
+          const mode = tMode.value === 'year' ? 'year' : 'month';
+          tMonthRow.style.display = mode === 'month' ? '' : 'none';
+          tYearRow.style.display = mode === 'year' ? '' : 'none';
+        }
+        tMode.addEventListener('change', updateTemporalModeUI);
+
+        function setDOI(doi) {
+          currentDOI = doi || null;
+          doiSpan.textContent = currentDOI || '-';
+        }
+
+        function addVarRow(v = {dependent:'', independent:'', note:''}) {
+          const row = document.createElement('div');
+          row.className = 'var-row';
+          const dep = document.createElement('input'); dep.type = 'text'; dep.placeholder = 'Dependent'; dep.value = v.dependent || '';
+          const indep = document.createElement('input'); indep.type = 'text'; indep.placeholder = 'Independent'; indep.value = v.independent || '';
+          const note = document.createElement('input'); note.type = 'text'; note.placeholder = 'Nota'; note.value = v.note || '';
+          const del = document.createElement('button'); del.type = 'button'; del.className = 'btn'; del.textContent = 'Rimuovi';
+          del.addEventListener('click', () => row.remove());
+          row.appendChild(dep); row.appendChild(indep); row.appendChild(note); row.appendChild(del);
+          varsEl.appendChild(row);
+        }
+
+        addVarBtn.addEventListener('click', () => addVarRow());
+
+        function collectVars() {
+          const vars = [];
+          for (const row of varsEl.querySelectorAll('.var-row')) {
+            const [dep, indep, note] = row.querySelectorAll('input');
+            vars.push({ dependent: dep.value || '', independent: indep.value || '', note: note.value || '' });
+          }
+          return vars;
+        }
+
+        function payload() {
+          const res = tMode.value === 'year' ? 'year' : 'month';
+          let start = '', end = '';
+          if (res === 'month') {
+            start = tStartMonth.value || '';
+            end = tEndMonth.value || '';
+          } else {
+            start = (tStartYear.value || '').toString();
+            end = (tEndYear.value || '').toString();
+          }
+          function splitCsv(str) {
+            return (str || '')
+              .split(',')
+              .map(s => s.trim())
+              .filter(Boolean);
+          }
+          return {
+            ecosistema: ecosystem.value || '',
+            background: background.value || '',
+            main_objective: mainObjective.value || '',
+            sub_objective: subObjective.value || '',
+            biological_organization: bioOrg.value || '',
+            temporal_scale: { start, end, resolution: res },
+            spatial_scale: { place: sPlace.value || '', lat: sLat.value || '', long: sLong.value || '', description: sDesc.value || '' },
+            methods: splitCsv(methodsInput.value),
+            variables: collectVars(),
+            main_outputs: mainOutputs.value || '',
+            commenti: { difetti: cDifetti.value || '', pregi: cPregi.value || '', spunti: cSpunti.value || '', idee_future: cIdee.value || '' },
+          };
+        }
+
+        function renderView(details) {
+          viewPanel.innerHTML = '';
+          const d = details || {};
+
+          function row(label, value) {
+            if (value == null || value === '') return null;
+            const wrap = document.createElement('div');
+            wrap.className = 'details-row';
+            const l = document.createElement('span'); l.className = 'details-label'; l.textContent = label;
+            const v = document.createElement('div'); v.textContent = String(value);
+            wrap.appendChild(l); wrap.appendChild(v);
+            return wrap;
+          }
+
+          const g1 = document.createElement('div'); g1.className = 'details-grid';
+          for (const el of [
+            row('Ecosystem', d.ecosistema),
+            row('Background', d.background),
+            row('Main objective', d.main_objective),
+            row('Sub-objective', d.sub_objective),
+            row('Biological organization', d.biological_organization),
+          ]) { if (el) g1.appendChild(el); }
+          if (g1.childElementCount) viewPanel.appendChild(g1);
+
+          // Methods chips
+          const methods = Array.isArray(d.methods) ? d.methods : (d.methods ? [String(d.methods)] : []);
+          if (methods.length) {
+            const title = document.createElement('h4'); title.className = 'details-title'; title.textContent = 'Methods'; viewPanel.appendChild(title);
+            const chips = document.createElement('div'); chips.className = 'chips';
+            methods.forEach(m => { const c = document.createElement('span'); c.className = 'chip'; c.textContent = m; chips.appendChild(c); });
+            viewPanel.appendChild(chips);
+          }
+
+          // Temporal scale (render only if start or end present)
+          const t = d.temporal_scale || {};
+          const tHas = (t.start && String(t.start).trim()) || (t.end && String(t.end).trim());
+          if (tHas) {
+            const title = document.createElement('h4'); title.className = 'details-title'; title.textContent = 'Temporal scale'; viewPanel.appendChild(title);
+            const g = document.createElement('div'); g.className = 'details-grid';
+            for (const el of [ row('Start', t.start), row('End', t.end), row('Resolution', t.resolution) ]) { if (el) g.appendChild(el); }
+            viewPanel.appendChild(g);
+          }
+
+          // Spatial scale (render only if at least one field present)
+          const s = d.spatial_scale || {};
+          const sHas = (s.place && String(s.place).trim()) || (s.lat && String(s.lat).trim()) || (s.long && String(s.long).trim()) || (s.description && String(s.description).trim());
+          if (sHas) {
+            const title = document.createElement('h4'); title.className = 'details-title'; title.textContent = 'Spatial scale'; viewPanel.appendChild(title);
+            const g = document.createElement('div'); g.className = 'details-grid';
+            for (const el of [ row('Place', s.place), row('Lat', s.lat), row('Long', s.long), row('Description', s.description) ]) { if (el) g.appendChild(el); }
+            viewPanel.appendChild(g);
+          }
+
+          // Variables
+          const vars = (Array.isArray(d.variables) ? d.variables : []).filter(v => (v && (String(v.dependent||'').trim() || String(v.independent||'').trim() || String(v.note||'').trim())));
+          if (vars.length) {
+            const title = document.createElement('h4'); title.className = 'details-title'; title.textContent = 'Variables'; viewPanel.appendChild(title);
+            const table = document.createElement('table'); table.className = 'vars-table';
+            const thead = document.createElement('thead'); const trh = document.createElement('tr');
+            for (const h of ['Dependent', 'Independent', 'Nota']) { const th = document.createElement('th'); th.textContent = h; trh.appendChild(th); }
+            thead.appendChild(trh); table.appendChild(thead);
+            const tbody = document.createElement('tbody');
+            for (const v of vars) {
+              const tr = document.createElement('tr');
+              const td1 = document.createElement('td'); td1.textContent = v?.dependent || ''; tr.appendChild(td1);
+              const td2 = document.createElement('td'); td2.textContent = v?.independent || ''; tr.appendChild(td2);
+              const td3 = document.createElement('td'); td3.textContent = v?.note || ''; tr.appendChild(td3);
+              tbody.appendChild(tr);
+            }
+            table.appendChild(tbody);
+            viewPanel.appendChild(table);
+          }
+
+          // Main outputs
+          if (d.main_outputs && String(d.main_outputs).trim()) {
+            const title = document.createElement('h4'); title.className = 'details-title'; title.textContent = 'Main outputs'; viewPanel.appendChild(title);
+            const wrap = row('Main outputs', d.main_outputs); if (wrap) viewPanel.appendChild(wrap);
+          }
+
+          // Comments
+          const c = d.commenti || {};
+          const cHas = (c.difetti && String(c.difetti).trim()) || (c.pregi && String(c.pregi).trim()) || (c.spunti && String(c.spunti).trim()) || (c.idee_future && String(c.idee_future).trim());
+          if (cHas) {
+            const title = document.createElement('h4'); title.className = 'details-title'; title.textContent = 'Commenti'; viewPanel.appendChild(title);
+            const g = document.createElement('div'); g.className = 'details-grid';
+            for (const el of [ row('Difetti', c.difetti), row('Pregi', c.pregi), row('Spunti', c.spunti), row('Idee future', c.idee_future) ]) { if (el) g.appendChild(el); }
+            viewPanel.appendChild(g);
+          }
+        }
+
+        // Prefill support
+        function prefill(details) {
+          if (!details) return;
+          currentDetails = details;
+          ecosystem.value = details.ecosistema || '';
+          renderEcosystemChips(ecosystem.value || null);
+          background.value = details.background || '';
+          mainObjective.value = details.main_objective || '';
+          subObjective.value = details.sub_objective || '';
+          bioOrg.value = details.biological_organization || '';
+          methodsInput.value = Array.isArray(details.methods) ? details.methods.join(', ') : (details.methods || '');
+          if (details.temporal_scale) {
+            const ts = details.temporal_scale || {};
+            const res = (ts.resolution === 'year' || ts.resolution === 'month') ? ts.resolution : (/^\d{4}-\d{2}$/.test(ts.start || '') ? 'month' : 'year');
+            tMode.value = res;
+            updateTemporalModeUI();
+            if (res === 'month') {
+              tStartMonth.value = (ts.start || '').slice(0,7);
+              tEndMonth.value = (ts.end || '').slice(0,7);
+              tStartYear.value = '';
+              tEndYear.value = '';
+            } else {
+              tStartYear.value = ts.start || '';
+              tEndYear.value = ts.end || '';
+              tStartMonth.value = '';
+              tEndMonth.value = '';
+            }
+          } else {
+            tMode.value = 'month';
+            updateTemporalModeUI();
+          }
+          if (details.spatial_scale) {
+            sPlace.value = details.spatial_scale.place || '';
+            sLat.value = details.spatial_scale.lat || '';
+            sLong.value = details.spatial_scale.long || '';
+            sDesc.value = details.spatial_scale.description || '';
+          }
+          varsEl.innerHTML = '';
+          (details.variables || []).forEach(addVarRow);
+          mainOutputs.value = details.main_outputs || '';
+          if (details.commenti) {
+            cDifetti.value = details.commenti.difetti || '';
+            cPregi.value = details.commenti.pregi || '';
+            cSpunti.value = details.commenti.spunti || '';
+            cIdee.value = details.commenti.idee_future || '';
+          }
+          renderView(details);
+        }
+
+        // messaging
+        window.addEventListener('message', (event) => {
+          if (!event || !event.data) return;
+          if (event.data.type === 'details:init') {
+            setDOI(event.data.doi || null);
+            // Se non vengono passati dettagli, resta in view con placeholder; se non esistono, passare a edit
+            renderEcosystemChips(ecosystem.value || null);
+            updateTemporalModeUI();
+          } else if (event.data.type === 'details:prefill') {
+            const d = event.data.details || null;
+            prefill(d);
+            if (d) {
+              setMode('view');
+            } else {
+              // Nessun dettaglio: passa a modifica per inserirli
+              setMode('edit');
+            }
+          }
+        });
+
+        // Actions
+        editBtn.addEventListener('click', () => setMode('edit'));
+        cancelEditBtn.addEventListener('click', () => { setMode('view'); renderView(currentDetails || payload()); });
+        closeBtn.addEventListener('click', () => {
+          try { if (window.parent && window.parent !== window) window.parent.postMessage({ type: 'details:cancel' }, '*'); } catch(_){}
+        });
+
+        saveBtn.addEventListener('click', () => {
+          const details = payload();
+          try {
+            if (window.parent && window.parent !== window) {
+              window.parent.postMessage({ type: 'details:save', doi: currentDOI, details }, '*');
+            }
+          } catch (_) {}
+        });
+      })();
+    </script>
+  </body>
+  </html>

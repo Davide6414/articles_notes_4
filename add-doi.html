@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="it">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Aggiungi DOI</title>
+    <link rel="stylesheet" href="project/assets/css/style.css" />
+    <script src="project/assets/js/dataService.js"></script>
+    <style>
+      :root { --gap: 12px; --border: 1px solid #e5e7eb; --radius: 12px; }
+      body { margin: 2rem; font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; color: #111827; }
+      a { color: #2563eb; text-decoration: none; }
+      a:hover { text-decoration: underline; }
+      .header { display: grid; grid-template-columns: 1fr auto; gap: 12px; align-items: center; margin-bottom: 16px; }
+      .title { margin: 0; font-size: 22px; }
+      .sub { color: #6b7280; font-size: 13px; }
+      .toolbar { display: flex; gap: 8px; align-items: center; }
+      .btn { font-size: 14px; padding: 8px 12px; border-radius: 8px; border: 1px solid #d0d0d0; background: #fff; cursor: pointer; }
+      .btn:hover { background: #f6f6f6; }
+      .primary { background: #2563eb; border-color: #2563eb; color: #fff; }
+      .danger { background: #fee2e2; border-color: #fecaca; }
+      .panel { padding: 12px; border: var(--border); border-radius: var(--radius); background: #fff; display:grid; gap:12px; }
+      .row { display: grid; gap: 6px; }
+      label { font-size: 12px; color: #374151; }
+      input[type="text"] { width: 100%; padding: 10px 12px; border: 1px solid #d0d0d0; border-radius: 8px; font-size: 14px; box-sizing: border-box; }
+      .preview { display: grid; gap: 8px; }
+      .field { font-size: 14px; }
+      .label { font-size: 12px; color: #6b7280; display:block; }
+      .error { color: #b91c1c; font-size: 13px; }
+      .success { color: #065f46; font-size: 13px; }
+    </style>
+  </head>
+  <body>
+    <div class="header">
+      <div>
+        <h1 class="title">Aggiungi DOI</h1>
+        <div class="sub">Recupera i metadati da Crossref e salva</div>
+      </div>
+      <div class="toolbar">
+        <a class="btn" href="index.html">← Torna</a>
+        <button id="saveBtn" class="btn primary" disabled>Salva</button>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="row">
+        <label for="doiInput">DOI</label>
+        <input id="doiInput" type="text" placeholder="es. 10.1038/nphys1170" />
+      </div>
+      <div class="toolbar">
+        <button id="searchBtn" class="btn">Cerca</button>
+        <div id="status" class="sub"></div>
+      </div>
+      <div id="errorBox" class="error" style="display:none;"></div>
+      <div id="successBox" class="success" style="display:none;"></div>
+      <div id="preview" class="preview"></div>
+    </div>
+
+    <script>
+      (function(){
+        const doiInput = document.getElementById('doiInput');
+        const searchBtn = document.getElementById('searchBtn');
+        const saveBtn = document.getElementById('saveBtn');
+        const preview = document.getElementById('preview');
+        const errorBox = document.getElementById('errorBox');
+        const successBox = document.getElementById('successBox');
+        const statusEl = document.getElementById('status');
+
+        const DOI_REGEX = /^10\.\d{4,9}\/[\-._;()/:A-Z0-9]+$/i;
+        let lastMessage = null;
+
+        const params = new URLSearchParams(location.search);
+        const initial = params.get('doi') || '';
+        if (initial) doiInput.value = initial;
+
+        function setBusy(b){
+          searchBtn.disabled = !!b;
+          saveBtn.disabled = !!b || !lastMessage;
+          statusEl.textContent = b ? 'Ricerca in corso…' : '';
+        }
+
+        function showError(msg){ errorBox.textContent = msg; errorBox.style.display = ''; successBox.style.display='none'; }
+        function showSuccess(msg){ successBox.textContent = msg; successBox.style.display = ''; errorBox.style.display='none'; }
+
+        function field(label, value){ if(!value) return null; const wrap=document.createElement('div'); wrap.className='field'; const l=document.createElement('span'); l.className='label'; l.textContent=label; const v=document.createElement('div'); v.textContent=value; wrap.appendChild(l); wrap.appendChild(v); return wrap; }
+
+        function authorsStr(msg){ const a=msg.author||[]; if(!Array.isArray(a)||!a.length) return ''; return a.map(p=>[p.given,p.family].filter(Boolean).join(' ')).filter(Boolean).join(', '); }
+
+        function issuedStr(msg){ try { const p = msg.issued && msg.issued['date-parts'] && msg.issued['date-parts'][0]; if (Array.isArray(p)) return p.join('-'); } catch(_){} return ''; }
+
+        function renderPreview(msg){
+          preview.innerHTML='';
+          const title = Array.isArray(msg.title) ? msg.title.join(' — ') : (msg.title || '');
+          const authors = authorsStr(msg);
+          const issued = issuedStr(msg);
+          const container = Array.isArray(msg['container-title']) ? msg['container-title'][0] : (msg['container-title'] || '');
+          const type = msg.type || '';
+          const doi = msg.DOI || msg.doi || '';
+          for (const el of [
+            field('Titolo', title),
+            field('Autori', authors),
+            field('Pubblicato', issued),
+            field('Sede', container),
+            field('Tipo', type),
+            field('DOI', doi),
+          ]) { if (el) preview.appendChild(el); }
+        }
+
+        async function search(){
+          const doi = (doiInput.value||'').trim();
+          lastMessage = null;
+          saveBtn.disabled = true;
+          preview.innerHTML='';
+          errorBox.style.display='none'; successBox.style.display='none';
+          if (!doi) { showError('Inserisci un DOI'); return; }
+          if (!DOI_REGEX.test(doi)) { showError('Formato DOI non valido'); return; }
+          setBusy(true);
+          try {
+            const url = `https://api.crossref.org/works/${encodeURIComponent(doi)}`;
+            const res = await fetch(url, { headers: { 'Accept': 'application/json' } });
+            if (!res.ok) throw new Error('HTTP '+res.status);
+            const data = await res.json();
+            const msg = data && data.message ? data.message : data;
+            lastMessage = msg;
+            renderPreview(msg);
+            saveBtn.disabled = false;
+            showSuccess('Metadati caricati. Puoi salvare.');
+          } catch (e) {
+            console.error('Errore Crossref', e);
+            showError('Errore durante il recupero da Crossref');
+          } finally {
+            setBusy(false);
+          }
+        }
+
+        async function save(){
+          if (!lastMessage) return;
+          try {
+            const doi = (lastMessage.DOI || lastMessage.doi || '').trim();
+            if (!doi) throw new Error('Nessun DOI nei metadati');
+            await DataService.saveRecord(doi, lastMessage);
+            showSuccess('Salvato correttamente');
+            setTimeout(() => { window.location.href = `details.html?doi=${encodeURIComponent(doi)}`; }, 500);
+          } catch(e){
+            console.error('Salvataggio fallito', e);
+            showError('Errore durante il salvataggio');
+          }
+        }
+
+        searchBtn.addEventListener('click', search);
+        saveBtn.addEventListener('click', save);
+        doiInput.addEventListener('keydown', (e)=>{ if ((e.ctrlKey||e.metaKey) && e.key==='Enter') search(); });
+      })();
+    </script>
+  </body>
+  </html>

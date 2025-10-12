@@ -1,0 +1,744 @@
+<!doctype html>
+<html lang="it">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Article Notes</title>
+    <link rel="stylesheet" href="project/assets/css/style.css" />
+    <script src="project/assets/js/dataService.js"></script>
+    <style>
+      :root {
+        --radius: 12px;
+        --gap: 12px;
+        --brand: #10b981;     /* verde acqua */
+        --brand-2: #06b6d4;   /* azzurro */
+        --brand-3: #a7f3d0;   /* verde chiaro */
+        --bg: #f8fafc;
+        --surface: #ffffff;
+        --border-color: #e2e8f0;
+        --text: #0f172a;
+        --muted: #64748b;
+        --chip-bg: #ecfeff;
+        --chip-border: #cffafe;
+      }
+
+      body {
+        font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+        line-height: 1.45;
+        margin: 2rem;
+        color: var(--text);
+        background: var(--bg);
+      }
+
+      button, .btn {
+        font-size: 14px;
+        padding: 8px 12px;
+        border-radius: 10px;
+        border: 1px solid var(--border-color);
+        background: var(--surface);
+        cursor: pointer;
+        transition: background 0.15s ease, transform 0.05s ease;
+      }
+      button:hover, .btn:hover { background: #f1f5f9; }
+      button:active, .btn:active { transform: translateY(1px); }
+      .btn.primary { background: var(--brand); color: #fff; border-color: var(--brand); }
+      .btn.primary:hover { filter: brightness(0.98); }
+
+      .header {
+        margin-bottom: 1rem;
+      }
+
+      /* Notes grid + cards */
+      .notes-section { margin-top: 20px; }
+      .section-header { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 10px 12px; border: 1px solid var(--border-color); border-radius: 14px; background: linear-gradient(180deg, #f0fdf4, #ecfeff); }
+      .section-title { margin: 0; font-size: 18px; }
+      .section-title.clickable { cursor: pointer; }
+      .section-title.clickable:hover { text-decoration: underline; }
+      /* Collapsed as desktop-like tile */
+      .notes-section.collapsed { display: inline-block; vertical-align: top; width: 180px; margin-right: 12px; }
+      .section-header.collapsed-tile { position: relative; display: grid; justify-items: center; gap: 8px; padding: 14px; background: linear-gradient(180deg, #ecfeff, #dcfce7); }
+      .section-header.collapsed-tile .collapse-btn { position: absolute; top: 6px; right: 6px; }
+      .article-icon { width: 72px; height: 72px; border-radius: 16px; background: #d1fae5; border: 1px solid #bbf7d0; display: grid; place-items: center; font-size: 36px; }
+      .article-caption { text-align: center; font-size: 13px; line-height: 1.2; max-width: 160px; }
+      .collapse-btn { font-size: 12px; padding: 6px 10px; border-radius: 10px; border: 1px solid var(--border-color); background: var(--surface); cursor: pointer; }
+      .collapse-btn:hover { background: #f1f5f9; }
+      .notes-grid {
+        display: grid;
+        /* Colonne di larghezza fissa; non allargare le card */
+        grid-template-columns: repeat(auto-fill, minmax(320px, 320px));
+        gap: 16px;
+        margin-top: 12px;
+        justify-content: start; /* allinea le colonne a sinistra, lascia spazio vuoto a destra */
+      }
+
+      .note-card {
+        --accent: var(--brand-2);
+        border: 1px solid var(--border-color);
+        border-left: 6px solid var(--accent);
+        border-radius: 14px;
+        padding: 12px;
+        background: var(--surface);
+        display: grid;
+        gap: 8px;
+        box-shadow: 0 2px 8px rgba(2, 132, 199, 0.06);
+      }
+
+      .note-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
+      .note-title { margin: 0; font-size: 16px; }
+      .note-sub { color: var(--muted); font-size: 12px; }
+
+      .type-pill {
+        font-size: 12px;
+        padding: 2px 8px;
+        border-radius: 9999px;
+        background: var(--brand-3);
+        color: #065f46;
+        border: 1px solid rgba(0,0,0,0.06);
+        white-space: nowrap;
+      }
+
+      .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+      .chip { font-size: 12px; padding: 4px 10px; border-radius: 9999px; border: 1px solid var(--border-color); background: #f8fafc; }
+      .chip.tag { background: var(--chip-bg); border-color: var(--chip-border); }
+      .chip.animal { background: #fefce8; border-color: #fde68a; }
+
+      .image-wrap { border-radius: 10px; overflow: hidden; border: 1px solid #e5e7eb; }
+      .image-preview { width: 100%; max-height: 220px; object-fit: cover; display: block; }
+
+      .card-actions { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-top: 4px; }
+      .action-left, .action-right { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+
+      .btn-link { background: #e0f2fe; border-color: #bae6fd; }
+
+      /* Filters */
+      .filters { margin-top: 16px; padding: 12px; border: 1px solid #e5e7eb; border-radius: 12px; background: #fafafa; }
+      .filters h2 { margin: 0; font-size: 16px; }
+      .filters-header { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
+      .filters-grid { display: grid; grid-template-columns: 1fr; gap: 12px; }
+      .filters .row { display: grid; gap: 8px; }
+      .filters label { font-size: 12px; color: #374151; }
+      .filters input[type="search"] { padding: 8px 10px; border: 1px solid #d0d0d0; border-radius: 8px; font-size: 14px; }
+      .filters-actions { display: flex; justify-content: flex-end; }
+      .filters.collapsed .filters-grid { display: none; }
+      .dropdown { position: relative; display: inline-block; }
+      .dropdown-menu { position: absolute; z-index: 20; right: 0; margin-top: 6px; min-width: 280px; padding: 10px; border: 1px solid #e5e7eb; border-radius: 10px; background: #fff; box-shadow: 0 10px 30px rgba(0,0,0,0.08); display: none; }
+      .dropdown.open .dropdown-menu { display: block; }
+      .dropdown .row { margin-bottom: 6px; }
+      .dropdown select[multiple] { min-height: 100px; }
+      .filters-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+      .chip.rem { cursor: pointer; }
+
+      /* Mobile tweaks */
+      @media (max-width: 640px) {
+        body { margin: 1rem; }
+        .notes-section.collapsed { width: 140px; }
+        .notes-grid { grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); }
+        .section-header { padding: 10px; }
+        .note-card { padding: 10px; }
+      }
+
+      /* Details shown only in popup via details-popup.html */
+    </style>
+  </head>
+  <body>
+    <h1 class="header">Article Notes</h1>
+    <div class="header" style="margin-top:-0.5rem;">
+      <div></div>
+      <div>
+        <a class="btn" href="add-doi.html">Aggiungi DOI</a>
+        <a class="btn" href="variabili.html">Variabili</a>
+        <a class="btn" href="variabili-tabella.html">Tabella variabili</a>
+        <a class="btn" href="grafici.html">Tabella grafici</a>
+      </div>
+    </div>
+
+    <section class="filters" aria-label="Filtri">
+      <div class="filters-header">
+        <h2>Filtri</h2>
+        <button id="filtersCollapseBtn" class="collapse-btn" aria-expanded="true" title="Comprimi/Espandi">▾</button>
+      </div>
+      <div class="filters-grid">
+        <div class="row">
+          <label for="filterTitle">Titolo articolo</label>
+          <input id="filterTitle" type="search" placeholder="Cerca per titolo..." />
+        </div>
+        <div class="row">
+          <label>Filtri selezionati</label>
+          <div id="filtersChips" class="filters-chips"></div>
+        </div>
+        <div class="row">
+          <label>Filtri avanzati</label>
+          <div class="dropdown" id="advDropdown">
+            <button id="advBtn" class="btn" type="button">Seleziona…</button>
+            <div id="advMenu" class="dropdown-menu">
+              <div class="row">
+                <label for="typeMulti">Types</label>
+                <select id="typeMulti" multiple></select>
+              </div>
+              <div class="row">
+                <label for="tagsMulti">Tags</label>
+                <select id="tagsMulti" multiple></select>
+              </div>
+              <div class="row">
+                <label for="animalsMulti">Animals</label>
+                <select id="animalsMulti" multiple></select>
+              </div>
+              <div class="row">
+                <label for="methodsMulti">Methods</label>
+                <select id="methodsMulti" multiple></select>
+              </div>
+              <div class="filters-actions">
+                <button id="applyAdv" class="btn primary" type="button">Applica</button>
+                <button id="clearAdv" class="btn" type="button">Pulisci</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="notesSection" aria-label="Note salvate" style="margin-top:16px;">
+      <div id="notesContainer"></div>
+    </section>
+
+    <!-- Popup disabilitato: gestione via pagine dedicate -->
+
+    <script>
+      (function () {
+        const notesContainer = document.getElementById('notesContainer');
+        const filterTitleEl = document.getElementById('filterTitle');
+        const filtersChips = document.getElementById('filtersChips');
+        const filtersEl = document.querySelector('section.filters');
+        const filtersCollapseBtn = document.getElementById('filtersCollapseBtn');
+        const advDropdown = document.getElementById('advDropdown');
+        const advBtn = document.getElementById('advBtn');
+        const advMenu = document.getElementById('advMenu');
+        const typeMulti = document.getElementById('typeMulti');
+        const tagsMulti = document.getElementById('tagsMulti');
+        const animalsMulti = document.getElementById('animalsMulti');
+        const methodsMulti = document.getElementById('methodsMulti');
+        const applyAdv = document.getElementById('applyAdv');
+        const clearAdv = document.getElementById('clearAdv');
+
+        let db = {};
+        const TYPE_COLOR_KEY = 'typeColors.v1';
+        const COLLAPSE_KEY = 'notesCollapsed.v1';
+        const FILTERS_COLLAPSE_KEY = 'filtersCollapsed.v1';
+        let facets = { types: [], tags: [], animals: [], methods: [] };
+        let filters = { title: '', types: new Set(), tags: new Set(), animals: new Set(), methods: new Set() };
+
+        function loadTypeColors() {
+          try { return JSON.parse(localStorage.getItem(TYPE_COLOR_KEY) || '{}') || {}; } catch (_) { return {}; }
+        }
+        function saveTypeColors(map) {
+          try { localStorage.setItem(TYPE_COLOR_KEY, JSON.stringify(map)); } catch (_) {}
+        }
+        function randomPastel() {
+          const h = Math.floor(Math.random() * 360);
+          const s = 70; // percent
+          const l = 88; // percent
+          return `hsl(${h} ${s}% ${l}%)`;
+        }
+        function getTypeColor(type) {
+          if (!type) return '#d1d5db';
+          const map = loadTypeColors();
+          if (!map[type]) {
+            map[type] = randomPastel();
+            saveTypeColors(map);
+          }
+          return map[type];
+        }
+
+        function loadCollapsed() {
+          try { return JSON.parse(localStorage.getItem(COLLAPSE_KEY) || '{}') || {}; } catch (_) { return {}; }
+        }
+        function saveCollapsed(map) {
+          try { localStorage.setItem(COLLAPSE_KEY, JSON.stringify(map)); } catch (_) {}
+        }
+        function loadFiltersCollapsed() {
+          try { return localStorage.getItem(FILTERS_COLLAPSE_KEY) === '1'; } catch (_) { return false; }
+        }
+        function saveFiltersCollapsed(v) {
+          try { localStorage.setItem(FILTERS_COLLAPSE_KEY, v ? '1' : '0'); } catch (_) {}
+        }
+
+        // Gestione filtri e rendering
+        function getTitle(entry) {
+          if (!entry) return '';
+          const t = entry.title;
+          if (Array.isArray(t) && t.length) return t.join(' — ');
+          if (typeof t === 'string') return t;
+          return '';
+        }
+
+        function detailsText(entry) {
+          const d = (entry && entry.dettagli) || {};
+          const parts = [];
+          const push = (v) => { if (v != null && String(v).trim()) parts.push(String(v)); };
+          // General
+          push(d.ecosistema);
+          push(d.background);
+          push(d.main_objective);
+          push(d.sub_objective);
+          push(d.biological_organization);
+          // Temporal
+          if (d.temporal_scale) {
+            push(d.temporal_scale.start);
+            push(d.temporal_scale.end);
+            push(d.temporal_scale.resolution);
+          }
+          // Spatial
+          if (d.spatial_scale) {
+            push(d.spatial_scale.place);
+            push(d.spatial_scale.lat);
+            push(d.spatial_scale.long);
+            push(d.spatial_scale.description);
+          }
+          // Methods (array)
+          if (Array.isArray(d.methods)) d.methods.forEach(push); else push(d.methods);
+          // Variables
+          if (Array.isArray(d.variables)) {
+            d.variables.forEach(v => { if (!v) return; push(v.dependent); push(v.independent); push(v.note); });
+          }
+          // Outputs
+          push(d.main_outputs);
+          // Comments
+          if (d.commenti) {
+            push(d.commenti.difetti);
+            push(d.commenti.pregi);
+            push(d.commenti.spunti);
+            push(d.commenti.idee_future);
+          }
+          return parts.join(' ').toLowerCase();
+        }
+
+        async function loadAll() {
+          try {
+            db = await DataService.getAll();
+          } catch (e) {
+            console.warn('[index] Impossibile caricare dal GAS:', e);
+            db = {};
+          }
+          computeFacets();
+          renderFilters();
+          renderNotes();
+        }
+
+        function computeFacets() {
+          const types = new Set();
+          const tags = new Set();
+          const methods = new Set();
+          const animals = new Set();
+          for (const doi of Object.keys(db)) {
+            const entry = db[doi] || {};
+            const notes = Array.isArray(entry.user_notes) ? entry.user_notes : (entry.user_note ? [entry.user_note] : []);
+            for (const n of notes) {
+              if (n && n.type) types.add(n.type);
+              const ts = Array.isArray(n?.tags) ? n.tags : (n?.tags ? [String(n.tags)] : []);
+              for (const t of ts) tags.add(t);
+              const an = Array.isArray(n?.animals) ? n.animals : (n?.animals ? [String(n.animals)] : []);
+              for (const a of an) animals.add(a);
+            }
+            const mm = entry?.dettagli?.methods;
+            (Array.isArray(mm) ? mm : (mm ? [String(mm)] : [])).forEach(m => methods.add(String(m)));
+          }
+          facets = { types: Array.from(types).sort((a,b)=>a.localeCompare(b, undefined, {sensitivity:'base'})), tags: Array.from(tags).sort((a,b)=>a.localeCompare(b, undefined, {sensitivity:'base'})), animals: Array.from(animals).sort((a,b)=>a.localeCompare(b, undefined, {sensitivity:'base'})), methods: Array.from(methods).sort((a,b)=>a.localeCompare(b, undefined, {sensitivity:'base'})) };
+        }
+
+        function renderFilters() {
+          // Title input
+          filterTitleEl.value = filters.title;
+          filterTitleEl.oninput = () => { filters.title = (filterTitleEl.value || '').toLowerCase().trim(); renderNotes(); };
+
+          // Populate advanced dropdown selects
+          function populateMulti(sel, values, selectedSet){
+            sel.innerHTML = '';
+            for (const v of values){ const op=document.createElement('option'); op.value=v; op.textContent=v; op.selected = selectedSet.has(v); sel.appendChild(op); }
+          }
+          populateMulti(typeMulti, facets.types, filters.types);
+          populateMulti(tagsMulti, facets.tags, filters.tags);
+          populateMulti(animalsMulti, facets.animals, filters.animals);
+          populateMulti(methodsMulti, facets.methods, filters.methods);
+
+          applyAdv.onclick = () => {
+            filters.types = new Set(Array.from(typeMulti.selectedOptions).map(o=>o.value));
+            filters.tags = new Set(Array.from(tagsMulti.selectedOptions).map(o=>o.value));
+            filters.methods = new Set(Array.from(methodsMulti.selectedOptions).map(o=>o.value));
+            filters.animals = new Set(Array.from(animalsMulti.selectedOptions).map(o=>o.value));
+            // non chiudere forzatamente; lasciare aperto se l'utente vuole continuare
+            renderNotes();
+            renderFilters();
+          };
+          clearAdv.onclick = () => {
+            filters.types = new Set(); filters.tags = new Set(); filters.animals = new Set(); filters.methods = new Set();
+            renderFilters(); renderNotes();
+          };
+
+          // Dropdown open/close
+          function updateAdvBtnLabel(){
+            const cnt = filters.types.size + filters.tags.size + filters.animals.size + filters.methods.size;
+            advBtn.textContent = cnt ? `Seleziona… (${cnt})` : 'Seleziona…';
+          }
+          updateAdvBtnLabel();
+          advBtn.onclick = (e) => { e.stopPropagation(); advDropdown.classList.toggle('open'); };
+          document.addEventListener('click', (e) => { if (!advDropdown.contains(e.target)) advDropdown.classList.remove('open'); });
+
+          // Collapsible filters handling
+          const collapsed = loadFiltersCollapsed();
+          filtersEl.classList.toggle('collapsed', collapsed);
+          if (filtersCollapseBtn) {
+            filtersCollapseBtn.setAttribute('aria-expanded', String(!collapsed));
+            filtersCollapseBtn.textContent = collapsed ? '▸' : '▾';
+            filtersCollapseBtn.onclick = () => {
+              const nowCollapsed = !filtersEl.classList.contains('collapsed');
+              filtersEl.classList.toggle('collapsed', nowCollapsed);
+              filtersCollapseBtn.setAttribute('aria-expanded', String(!nowCollapsed));
+              filtersCollapseBtn.textContent = nowCollapsed ? '▸' : '▾';
+              saveFiltersCollapsed(nowCollapsed);
+            };
+          }
+
+          // Render selected filters as removable chips
+          function renderSelectedChips(){
+            filtersChips.innerHTML = '';
+            const addChip = (label, val, removeFn) => {
+              const c = document.createElement('span'); c.className = 'chip rem'; c.title = 'Rimuovi';
+              c.textContent = `${label}: ${val} ×`;
+              c.onclick = () => { removeFn(); renderFilters(); renderNotes(); };
+              filtersChips.appendChild(c);
+            };
+            Array.from(filters.types).forEach(v => addChip('type', v, () => filters.types.delete(v)) );
+            Array.from(filters.tags).forEach(v => addChip('tag', v, () => filters.tags.delete(v)) );
+            Array.from(filters.animals).forEach(v => addChip('animal', v, () => filters.animals.delete(v)) );
+            Array.from(filters.methods).forEach(v => addChip('method', v, () => filters.methods.delete(v)) );
+            if (!filters.types.size && !filters.tags.size && !filters.animals.size && !filters.methods.size) {
+              const m = document.createElement('div'); m.className='small'; m.textContent='Nessun filtro avanzato selezionato.'; filtersChips.appendChild(m);
+            }
+            updateAdvBtnLabel();
+          }
+          renderSelectedChips();
+        }
+
+        function createCard(doi, entry, note) {
+          const card = document.createElement('article');
+          card.className = 'note-card';
+          const accent = getTypeColor(note.type);
+          card.style.setProperty('--accent', accent);
+
+          const header = document.createElement('div');
+          header.className = 'note-header';
+          if (note.type) {
+            const tp = document.createElement('span');
+            tp.className = 'type-pill';
+            tp.textContent = note.type;
+            header.appendChild(tp);
+          }
+          card.appendChild(header);
+
+          const sub = document.createElement('div');
+          sub.className = 'note-sub';
+          sub.textContent = 'DOI: ' + doi + (note.createdAt ? ' • ' + new Date(note.createdAt).toLocaleString() : '');
+          card.appendChild(sub);
+
+          // Image preview if present
+          if (note.imageUrl) {
+            const wrap = document.createElement('div');
+            wrap.className = 'image-wrap';
+            const a = document.createElement('a');
+            a.href = note.imageUrl; a.target = '_blank'; a.rel = 'noopener noreferrer';
+            const img = document.createElement('img');
+            img.className = 'image-preview';
+            img.alt = getTitle(entry) || 'image';
+            img.src = note.imageUrl;
+            img.addEventListener('error', () => {
+              try { wrap.remove(); } catch (_) {}
+            });
+            a.appendChild(img);
+            wrap.appendChild(a);
+            card.appendChild(wrap);
+          }
+
+          if (note.text) {
+            const p = document.createElement('p');
+            p.textContent = note.text;
+            p.style.margin = '4px 0';
+            card.appendChild(p);
+          }
+
+          if (note.comment) {
+            const c = document.createElement('div');
+            c.className = 'note-sub';
+            c.textContent = 'Commento: ' + note.comment;
+            card.appendChild(c);
+          }
+
+          // Chips: tags
+          const tags = Array.isArray(note.tags) ? note.tags : (note.tags ? [String(note.tags)] : []);
+          if (tags.length) {
+            const chips = document.createElement('div');
+            chips.className = 'chips';
+            for (const t of tags) {
+              const c = document.createElement('span');
+              c.className = 'chip tag';
+              c.textContent = t;
+              chips.appendChild(c);
+            }
+            card.appendChild(chips);
+          }
+
+          // Chips: animals
+          const animals = Array.isArray(note.animals) ? note.animals : (note.animals ? [String(note.animals)] : []);
+          if (animals.length) {
+            const chips = document.createElement('div');
+            chips.className = 'chips';
+            for (const a of animals) {
+              const c = document.createElement('span');
+              c.className = 'chip animal';
+              c.textContent = a;
+              chips.appendChild(c);
+            }
+            card.appendChild(chips);
+          }
+
+          const actions = document.createElement('div');
+          actions.className = 'card-actions';
+          const left = document.createElement('div');
+          left.className = 'action-left';
+          const right = document.createElement('div');
+          right.className = 'action-right';
+
+          if (note.url) {
+            const linkBtn = document.createElement('button');
+            linkBtn.className = 'btn btn-link';
+            linkBtn.textContent = 'Link';
+            linkBtn.addEventListener('click', () => { try { window.open(note.url, '_blank', 'noopener'); } catch (_) {} });
+            left.appendChild(linkBtn);
+          }
+          if (note.imageUrl) {
+            const imgBtn = document.createElement('button');
+            imgBtn.className = 'btn btn-link';
+            imgBtn.textContent = 'Immagine';
+            imgBtn.addEventListener('click', () => { try { window.open(note.imageUrl, '_blank', 'noopener'); } catch (_) {} });
+            left.appendChild(imgBtn);
+          }
+
+          const editBtn = document.createElement('button');
+          editBtn.className = 'btn';
+          editBtn.textContent = 'Modifica';
+          editBtn.addEventListener('click', () => editNote(doi, note.id));
+          right.appendChild(editBtn);
+
+          actions.appendChild(left);
+          actions.appendChild(right);
+          card.appendChild(actions);
+
+          return card;
+        }
+
+        function matchesFilters(entry, note) {
+          // title filter
+          if (filters.title) {
+            const title = (getTitle(entry) || '').toLowerCase();
+            if (!title.includes(filters.title)) return false;
+          }
+          // type filter (OR tra selezioni)
+          if (filters.types.size) {
+            if (!note.type || !filters.types.has(note.type)) return false;
+          }
+          // tags filter (OR tra selezioni)
+          if (filters.tags.size) {
+            const tags = Array.isArray(note.tags) ? note.tags : (note.tags ? [String(note.tags)] : []);
+            const hit = tags.some(t => filters.tags.has(t));
+            if (!hit) return false;
+          }
+          // animals filter (OR tra selezioni) per nota
+          if (filters.animals.size) {
+            const animals = Array.isArray(note.animals) ? note.animals : (note.animals ? [String(note.animals)] : []);
+            const hit = animals.some(a => filters.animals.has(a));
+            if (!hit) return false;
+          }
+          // methods filter (OR tra selezioni) at article-level
+          if (filters.methods.size) {
+            const mm = entry?.dettagli?.methods;
+            const methods = Array.isArray(mm) ? mm : (mm ? [String(mm)] : []);
+            const hit = methods.some(m => filters.methods.has(m));
+            if (!hit) return false;
+          }
+          return true;
+        }
+
+        // Details visualization is handled in details-popup.html, opened on title click
+
+        function renderNotes() {
+          notesContainer.innerHTML = '';
+          const dois = Object.keys(db);
+          if (!dois.length) {
+            const empty = document.createElement('div');
+            empty.textContent = 'Nessuna nota salvata ancora.';
+            empty.style.color = '#6b7280';
+            empty.style.fontSize = '14px';
+            notesContainer.appendChild(empty);
+            return;
+          }
+
+          // Precalcola mappa colori per tutti i type presenti
+          try {
+            const types = new Set();
+            for (const doi of dois) {
+              const entry = db[doi] || {};
+              const notes = Array.isArray(entry.user_notes) ? entry.user_notes : (entry.user_note ? [entry.user_note] : []);
+              for (const n of notes) { if (n && n.type) types.add(n.type); }
+            }
+            const map = loadTypeColors();
+            let changed = false;
+            for (const t of types) {
+              if (!map[t]) { map[t] = randomPastel(); changed = true; }
+            }
+            if (changed) saveTypeColors(map);
+          } catch (_) {}
+
+          // Ordina le sezioni per titolo (fallback DOI)
+          const sections = dois.map(doi => {
+            const entry = db[doi] || {};
+            const title = getTitle(entry) || doi;
+            return { doi, entry, title };
+          }).sort((a, b) => a.title.localeCompare(b.title, undefined, { sensitivity: 'base' }));
+
+          const collapsedMap = loadCollapsed();
+
+          for (const { doi, entry, title } of sections) {
+            // Filtro testuale: match su titolo o dettagli
+            const query = (filters.title || '').toLowerCase();
+            const matchesText = !query || title.toLowerCase().includes(query) || detailsText(entry).includes(query);
+            if (!matchesText) continue;
+
+            const notes = Array.isArray(entry.user_notes) ? entry.user_notes : (entry.user_note ? [entry.user_note] : []);
+            // Ordina note per data (desc), se disponibile
+            notes.sort((a, b) => {
+              const ta = a && a.createdAt ? new Date(a.createdAt).getTime() : 0;
+              const tb = b && b.createdAt ? new Date(b.createdAt).getTime() : 0;
+              return tb - ta;
+            });
+
+            const visible = notes.filter(n => matchesFilters(entry, n));
+            const count = visible.length;
+
+            // Decide if this section should be shown
+            const advancedActive = (filters.types.size || filters.tags.size || filters.animals.size || filters.methods.size);
+            if (advancedActive && count === 0) continue;
+
+            const section = document.createElement('section');
+            section.className = 'notes-section';
+
+            const header = document.createElement('div');
+            header.className = 'section-header';
+            const h = document.createElement('h2');
+            h.className = 'section-title clickable';
+            h.setAttribute('tabindex', '0');
+            h.addEventListener('click', () => openDetailsFor(doi));
+            h.addEventListener('keydown', (ev) => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); openDetailsFor(doi); } });
+            const btn = document.createElement('button');
+            btn.className = 'collapse-btn';
+            const collapsed = !!collapsedMap[doi];
+            btn.setAttribute('aria-expanded', String(!collapsed));
+            btn.textContent = collapsed ? '▸' : '▾';
+            header.appendChild(btn);
+            // Add icon + caption for collapsed view
+            const icon = document.createElement('div'); icon.className = 'article-icon'; icon.textContent = '📄';
+            const caption = document.createElement('div'); caption.className = 'article-caption';
+            // Short caption without count
+            caption.textContent = title;
+            // Populate header based on state later
+            function applyHeaderLayout() {
+              header.innerHTML = '';
+              header.appendChild(btn);
+              if (section.classList.contains('collapsed')) {
+                header.classList.add('collapsed-tile');
+                header.appendChild(icon);
+                header.appendChild(caption);
+              } else {
+                header.classList.remove('collapsed-tile');
+                const titleEl = document.createElement('h2');
+                titleEl.className = 'section-title clickable';
+                titleEl.textContent = `${title} (${count})`;
+                titleEl.setAttribute('tabindex', '0');
+                titleEl.addEventListener('click', () => openDetailsFor(doi));
+                titleEl.addEventListener('keydown', (ev) => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); openDetailsFor(doi); } });
+                header.appendChild(titleEl);
+              }
+              // Actions (add note, variables)
+              const actions = document.createElement('div');
+              actions.style.display = 'flex';
+              actions.style.gap = '8px';
+              actions.style.marginLeft = 'auto';
+              const addNoteBtn = document.createElement('button');
+              addNoteBtn.className = 'btn';
+              addNoteBtn.textContent = 'Aggiungi nota';
+              addNoteBtn.addEventListener('click', (e) => { e.stopPropagation(); window.location.href = `notes.html?doi=${encodeURIComponent(doi)}`; });
+              const varsBtn = document.createElement('button');
+              varsBtn.className = 'btn';
+              varsBtn.textContent = 'Variabili';
+              varsBtn.addEventListener('click', (e) => { e.stopPropagation(); window.location.href = `variabili.html?doi=${encodeURIComponent(doi)}`; });
+              actions.appendChild(addNoteBtn);
+              actions.appendChild(varsBtn);
+              header.appendChild(actions);
+            }
+            if (collapsed) section.classList.add('collapsed');
+            applyHeaderLayout();
+            section.appendChild(header);
+
+            const grid = document.createElement('div');
+            grid.className = 'notes-grid';
+            if (collapsed) grid.style.display = 'none';
+
+            // Details are not rendered inline; click title to open details popup
+
+            if (count > 0) {
+              for (const note of visible) {
+                const card = createCard(doi, entry, note);
+                grid.appendChild(card);
+              }
+            } else if (!collapsed) {
+              const placeholder = document.createElement('div');
+              placeholder.textContent = 'Nessuna nota per questo articolo.';
+              placeholder.style.color = '#6b7280';
+              placeholder.style.fontSize = '14px';
+              // Usa tutta la riga
+              placeholder.style.gridColumn = '1 / -1';
+              grid.appendChild(placeholder);
+            }
+
+            btn.addEventListener('click', (e) => {
+              e.stopPropagation();
+              const nowCollapsed = grid.style.display !== 'none' ? true : false;
+              grid.style.display = nowCollapsed ? 'none' : '';
+              section.classList.toggle('collapsed', nowCollapsed);
+              btn.textContent = nowCollapsed ? '▸' : '▾';
+              btn.setAttribute('aria-expanded', String(!nowCollapsed));
+              collapsedMap[doi] = nowCollapsed;
+              saveCollapsed(collapsedMap);
+              applyHeaderLayout();
+            });
+
+            section.appendChild(grid);
+            notesContainer.appendChild(section);
+          }
+        }
+
+        async function editNote(doi, noteId) {
+          window.location.href = `notes.html?doi=${encodeURIComponent(doi)}&id=${encodeURIComponent(noteId)}`;
+        }
+
+        async function openDetailsFor(doi) {
+          if (!doi) return;
+          window.location.href = `details.html?doi=${encodeURIComponent(doi)}`;
+        }
+
+        // Initial load
+        loadAll();
+
+        // Nessun listener messaggi dal popup: popup disabilitato
+      })();
+    </script>
+  </body>
+  </html>
