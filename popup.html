@@ -238,9 +238,11 @@
             console.log('[popup] Dati Crossref:');
             logAllFields(message);
             try { if (window.parent && window.parent !== window) window.parent.postMessage({ type: 'popup:crossref', doi, data: message }, '*'); } catch(_){}
-            lastDOI = doi; lastCrossrefMessage = message;
-            // salva base su server per renderlo selezionabile
-            await saveCombinedToServer(Object.assign({}, message));
+            // riduci il payload a ciò che serve al progetto
+            const minimal = { DOI: doi, title: (message && message.title) ? message.title : [], abstract: message && message.abstract ? message.abstract : null };
+            lastDOI = doi; lastCrossrefMessage = minimal;
+            // salva base su GAS per renderlo selezionabile
+            await saveCombinedToServer(minimal);
             await refreshDbAll();
             populateCurrentSelect();
             // seleziona l'opzione corrente

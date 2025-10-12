@@ -32,7 +32,24 @@
         return out;
       }
     } catch (e) {
-      // fall through to GET save
+      // fall through to alternate strategies
+    }
+
+    // Try POST form-urlencoded as alternative
+    try {
+      const body = `op=save&doi=${encodeURIComponent(doi)}&record=${encodeURIComponent(JSON.stringify(record))}`;
+      const resForm = await fetch(GAS_BASE, {
+        method: 'POST',
+        credentials: 'omit',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' },
+        body,
+      });
+      if (resForm.ok) {
+        const out = await resForm.json().catch(() => ({ ok: true }));
+        return out;
+      }
+    } catch (e) {
+      // fall through
     }
     // Fallback GET (urlencoded data). Use chunking to avoid URL length limits
     const jsonStr = JSON.stringify(record);
@@ -49,8 +66,12 @@
         idx += chunkSize; part += 1;
       }
     }
+    // If URL becomes too long, abort with guidance
+    if (url.length > 7000) {
+      throw new Error('Payload troppo grande per GET; abilita POST (consigliato) o riduci il record.');
+    }
     const res2 = await fetch(url, { method: 'GET', credentials: 'omit' });
-    if (!res2.ok) throw new Error('saveRecord fallback failed: ' + res2.status);
+    if (!res2.ok) throw new Error('saveRecord fallback GET failed: ' + res2.status);
     const out2 = await res2.json().catch(() => ({ ok: true }));
     return out2;
   }

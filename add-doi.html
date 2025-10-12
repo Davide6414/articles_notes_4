@@ -133,12 +133,24 @@
           }
         }
 
+        function minimalRecordFromCrossref(msg){
+          const doi = (msg && (msg.DOI || msg.doi) || '').trim();
+          const title = (msg && msg.title) ? msg.title : [];
+          const abstract = (msg && msg.abstract) ? msg.abstract : null;
+          return {
+            DOI: doi,
+            title: title,
+            abstract: abstract
+          };
+        }
+
         async function save(){
           if (!lastMessage) return;
           try {
             const doi = (lastMessage.DOI || lastMessage.doi || '').trim();
             if (!doi) throw new Error('Nessun DOI nei metadati');
-            await DataService.saveRecord(doi, lastMessage);
+            const minimal = minimalRecordFromCrossref(lastMessage);
+            await DataService.saveRecord(doi, minimal);
             showSuccess('Salvato correttamente');
             setTimeout(() => { window.location.href = `details.html?doi=${encodeURIComponent(doi)}`; }, 500);
           } catch(e){
