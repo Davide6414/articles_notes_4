@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Nota Articolo</title>
     <link rel="stylesheet" href="project/assets/css/style.css" />
+    <script src="project/assets/js/dataService.js"></script>
     <script src="project/assets/js/toast.js"></script>
     <style>
       :root { --gap: 12px; --border: 1px solid #e5e7eb; --radius: 12px; }
@@ -200,6 +201,11 @@
         async function loadAll(){
           try {
             db = await DataService.getAll();
+            const dois = Object.keys(db);
+            console.log('[notes] DOIs caricati:', dois.length);
+            if (dois.length === 0 && Toast && Toast.info) {
+              Toast.info('Nessun articolo trovato. Aggiungi un DOI prima di creare note.');
+            }
           } catch(e){ db = {}; }
           computeFacets();
           renderFacetChips();
