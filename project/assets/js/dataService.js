@@ -46,25 +46,8 @@
   async function saveRecord(doi, record) {
     const payload = normalizeRecordForSave(doi, record);
     dlog('SAVE start', payload.DOI, { notes: !!payload.user_notes, dettagli: !!payload.dettagli, vars: !!payload.dati_variabili });
-    // Try POST JSON first
-    try {
-      dlog('SAVE try POST JSON');
-      const res = await fetch(GAS_BASE, {
-        method: 'POST',
-        credentials: 'omit',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ op: 'save', doi: payload.DOI, record: payload }),
-      });
-      if (res.ok) {
-        const out = await res.json().catch(() => ({ ok: true }));
-        dlog('SAVE POST JSON ok');
-        return out;
-      }
-    } catch (e) {
-      dlog('SAVE POST JSON failed', e && e.message);
-    }
 
-    // Try POST form-urlencoded as alternative
+    // Prefer POST form-urlencoded first (simple request, evita preflight CORS)
     try {
       dlog('SAVE try POST form-urlencoded');
       const body = `op=save&doi=${encodeURIComponent(payload.DOI)}&record=${encodeURIComponent(JSON.stringify(payload))}`;
@@ -81,6 +64,24 @@
       }
     } catch (e) {
       dlog('SAVE POST FORM failed', e && e.message);
+    }
+
+    // Tentativo POST JSON (se supportato dalla tua distribuzione GAS)
+    try {
+      dlog('SAVE try POST JSON');
+      const res = await fetch(GAS_BASE, {
+        method: 'POST',
+        credentials: 'omit',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ op: 'save', doi: payload.DOI, record: payload }),
+      });
+      if (res.ok) {
+        const out = await res.json().catch(() => ({ ok: true }));
+        dlog('SAVE POST JSON ok');
+        return out;
+      }
+    } catch (e) {
+      dlog('SAVE POST JSON failed (2)', e && e.message);
     }
     // Fallback GET (urlencoded data). Use chunking to avoid URL length limits
     const jsonStr = JSON.stringify(payload);
