@@ -6,6 +6,7 @@
     <title>Dettagli Articolo</title>
     <link rel="stylesheet" href="project/assets/css/style.css" />
     <script src="project/assets/js/dataService.js"></script>
+    <script src="project/assets/js/toast.js"></script>
     <style>
       :root { --gap: 12px; --border: 1px solid #e5e7eb; --radius: 12px; }
       body { margin: 2rem; font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; color: #111827; }
@@ -383,12 +384,15 @@
             const db = await DataService.getAll();
             const base = db[doi] || { DOI: doi };
             const combined = Object.assign({}, base, { dettagli: payload() });
+            const tid = Toast ? Toast.loading('Salvataggio dettagli...') : null;
             await DataService.saveRecord(doi, combined);
+            if (tid && Toast.update) { Toast.update(tid, 'Dettagli salvati', 'success'); setTimeout(()=>Toast.dismiss(tid), 600); }
             setMode('view');
             entry = combined;
             renderView();
           } catch (e) {
             console.error('Salvataggio fallito', e);
+            if (Toast && Toast.error) Toast.error('Errore salvataggio dettagli');
             alert('Errore durante il salvataggio');
           }
         };

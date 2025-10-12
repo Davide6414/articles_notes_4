@@ -6,6 +6,7 @@
     <title>Tabella Grafici (Effect sizes)</title>
     <link rel="stylesheet" href="project/assets/css/style.css" />
     <script src="project/assets/js/dataService.js"></script>
+    <script src="project/assets/js/toast.js"></script>
     <style>
       :root { --gap: 12px; --border: 1px solid #e5e7eb; --radius: 12px; }
       body { margin: 2rem; font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; color: #111827; }
@@ -218,6 +219,7 @@
         }
 
         async function load(){
+          const tid = Toast ? Toast.loading('Caricamento grafici...') : null;
           try {
             db = await DataService.getAll();
             // flatten variables with DOI and title
@@ -232,8 +234,10 @@
             }
             groups = groupByVariable(rows);
             render();
+            if (tid && Toast.update) { Toast.update(tid, 'Grafici pronti', 'success'); setTimeout(()=>Toast.dismiss(tid), 600); }
           } catch (e) {
             console.error('Errore caricamento', e);
+            if (Toast && Toast.error) Toast.error('Errore caricamento grafici');
           }
         }
 

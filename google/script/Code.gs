@@ -19,19 +19,36 @@ const CONFIG = {
   INDENT: 2,
 };
 
+const DEBUG = true;
+function dbg_(msg, extra) {
+  try {
+    if (!DEBUG) return;
+    if (extra !== undefined) {
+      Logger.log('[DEBUG] ' + msg + ' :: ' + (typeof extra === 'string' ? extra : JSON.stringify(extra)));
+    } else {
+      Logger.log('[DEBUG] ' + msg);
+    }
+  } catch (_) {}
+}
+
 function doGet(e) {
   try {
+    dbg_('doGet entry', { hasParams: !!(e && e.parameter), keys: e && e.parameter ? Object.keys(e.parameter) : [] });
     const op = (e && e.parameter && e.parameter.op) || (e && e.parameter && e.parameter.action) || 'health';
+    dbg_('doGet op', op);
     if (op === 'health') {
       return json_({ ok: true, status: 'Web App is running', now: new Date().toISOString() });
     }
     if (op === 'all') {
+      dbg_('doGet all -> reading DB');
       const db = readDb_();
+      dbg_('doGet all -> size', Object.keys(db).length);
       return json_({ ok: true, data: db });
     }
     if (op === 'byDoi') {
       const doi = (e.parameter && e.parameter.doi) || '';
       if (!doi) return badRequest_('missing doi');
+      dbg_('doGet byDoi', doi);
       const db = readDb_();
       return json_({ ok: true, data: db[doi] || null });
     }
@@ -54,6 +71,7 @@ function doGet(e) {
         if (parts.length) raw = parts.join('');
       }
       if (!doi || !raw) return badRequest_('missing doi or data');
+      dbg_('doGet save (chunks?)', { doi: doi, len: raw && raw.length, chunks: (e.parameter && e.parameter.d1) ? 'yes' : 'no' });
       let record;
       try { record = JSON.parse(raw); } catch (err) { return badRequest_('invalid json data'); }
       upsertRecord_(doi, record);
@@ -67,12 +85,15 @@ function doGet(e) {
 
 function doPost(e) {
   try {
+    dbg_('doPost entry', { hasData: !!(e && e.postData), type: e && e.postData ? e.postData.type : null, len: e && e.postData && e.postData.contents ? e.postData.contents.length : 0 });
     const body = parseBody_(e);
     const op = body.op || body.action || 'save';
+    dbg_('doPost op', op);
     if (op === 'save') {
       const doi = body.doi || (body.record && body.record.DOI) || body.record?.doi || '';
       const record = body.record || null;
       if (!doi || !record) return badRequest_('missing doi or record');
+      dbg_('doPost save', { doi: doi, hasNotes: !!record.user_notes, hasDettagli: !!record.dettagli, hasVars: !!record.dati_variabili });
       upsertRecord_(doi, record);
       return json_({ ok: true, saved: doi });
     }
@@ -94,6 +115,7 @@ function doPost(e) {
       return json_({ ok: true, savedCount: Object.keys(records).length });
     }
     if (op === 'all') {
+      dbg_('doPost all -> reading DB');
       const db = readDb_();
       return json_({ ok: true, data: db });
     }
@@ -116,6 +138,7 @@ function badRequest_(msg) {
 }
 
 function error_(err) {
+  dbg_('ERROR', '' + err);
   return json_({ ok: false, error: ('' + err) });
 }
 
@@ -162,6 +185,7 @@ function readDb_() {
     if (obj && typeof obj === 'object') return obj;
     return {};
   } catch (err) {
+    dbg_('readDb_ parse error', '' + err);
     return {};
   }
 }
@@ -181,6 +205,7 @@ function upsertRecord_(doi, record) {
   const lock = LockService.getScriptLock();
   lock.waitLock(20 * 1000);
   try {
+    dbg_('upsertRecord_', { doi: doi, fields: Object.keys(record || {}) });
     const db = readDb_();
     db[String(doi)] = record;
     writeDb_(db);

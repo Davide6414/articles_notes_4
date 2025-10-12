@@ -6,6 +6,7 @@
     <title>Tabella Variabili</title>
     <link rel="stylesheet" href="project/assets/css/style.css" />
     <script src="project/assets/js/dataService.js"></script>
+    <script src="project/assets/js/toast.js"></script>
     <style>
       :root { --gap: 12px; --border: 1px solid #e5e7eb; --radius: 12px; }
       body { margin: 2rem; font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; color: #111827; }
@@ -187,6 +188,7 @@
         }
 
         async function load(){
+          const tid = Toast ? Toast.loading('Caricamento variabili...') : null;
           try {
             db = await DataService.getAll();
             const dois = Object.keys(db);
@@ -200,8 +202,10 @@
               }
             }
             render();
+            if (tid && Toast.update) { Toast.update(tid, 'Variabili caricate', 'success'); setTimeout(()=>Toast.dismiss(tid), 600); }
           } catch (e) {
             console.error('Caricamento fallito', e);
+            if (Toast && Toast.error) Toast.error('Errore caricamento variabili');
           }
         }
 

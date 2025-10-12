@@ -4,6 +4,8 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Popup - Inserimento testo</title>
+    <script src="project/assets/js/dataService.js"></script>
+    <script src="project/assets/js/toast.js"></script>
     <style>
       :root {
         --gap: 12px;
@@ -290,10 +292,13 @@
           try {
             const doi = payload.DOI || payload.doi || null;
             if (!doi) throw new Error('missing DOI in payload');
+            const tid = window.Toast ? Toast.loading('Salvataggio...') : null;
             const out = await DataService.saveRecord(doi, payload);
+            if (tid && Toast.update) { Toast.update(tid, 'Salvato', 'success'); setTimeout(()=>Toast.dismiss(tid), 500); }
             console.log('[popup] Salvato su GAS:', out);
           } catch (err) {
             console.error('[popup] Salvataggio su GAS fallito:', err);
+            if (window.Toast && Toast.error) Toast.error('Errore salvataggio');
           }
         }
 

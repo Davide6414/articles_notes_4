@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Nota Articolo</title>
     <link rel="stylesheet" href="project/assets/css/style.css" />
+    <script src="project/assets/js/toast.js"></script>
     <style>
       :root { --gap: 12px; --border: 1px solid #e5e7eb; --radius: 12px; }
       body { margin: 2rem; font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; color: #111827; }
@@ -358,10 +359,13 @@
             if (idx >= 0) notesArr[idx] = enriched; else notesArr.push(enriched);
             combined.user_notes = notesArr;
 
+            const tid = Toast ? Toast.loading('Salvataggio nota...') : null;
             await DataService.saveRecord(doi, combined);
+            if (tid && Toast.update) { Toast.update(tid, 'Nota salvata', 'success'); setTimeout(()=>Toast.dismiss(tid), 600); }
             window.location.href = 'index.html';
           } catch (e) {
             console.error('Salvataggio nota fallito', e);
+            if (Toast && Toast.error) Toast.error('Errore salvataggio nota');
             alert('Errore durante il salvataggio');
           }
         }

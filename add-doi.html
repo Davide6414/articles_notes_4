@@ -6,6 +6,7 @@
     <title>Aggiungi DOI</title>
     <link rel="stylesheet" href="project/assets/css/style.css" />
     <script src="project/assets/js/dataService.js"></script>
+    <script src="project/assets/js/toast.js"></script>
     <style>
       :root { --gap: 12px; --border: 1px solid #e5e7eb; --radius: 12px; }
       body { margin: 2rem; font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; color: #111827; }
@@ -150,11 +151,14 @@
             const doi = (lastMessage.DOI || lastMessage.doi || '').trim();
             if (!doi) throw new Error('Nessun DOI nei metadati');
             const minimal = minimalRecordFromCrossref(lastMessage);
+            const tid = Toast ? Toast.loading('Salvataggio in corso...') : null;
             await DataService.saveRecord(doi, minimal);
+            if (tid && Toast.update) { Toast.update(tid, 'DOI salvato', 'success'); setTimeout(()=>Toast.dismiss(tid), 600); }
             showSuccess('Salvato correttamente');
             setTimeout(() => { window.location.href = `details.html?doi=${encodeURIComponent(doi)}`; }, 500);
           } catch(e){
             console.error('Salvataggio fallito', e);
+            if (Toast && Toast.error) Toast.error('Errore durante il salvataggio');
             showError('Errore durante il salvataggio');
           }
         }

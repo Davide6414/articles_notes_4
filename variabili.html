@@ -5,6 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Variabili per Articolo</title>
     <link rel="stylesheet" href="project/assets/css/style.css" />
+    <script src="project/assets/js/dataService.js"></script>
+    <script src="project/assets/js/toast.js"></script>
     <style>
       :root { --gap: 12px; --border: 1px solid #e5e7eb; --radius: 12px; }
       body { margin: 2rem; font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; color: #111827; }
@@ -319,10 +321,12 @@
               return Object.assign({}, it, { name_labeled: labels[i] || (it.name || '') , note: (it.note && it.note.trim()) ? it.note : 'no note' });
             });
             const combined = Object.assign({}, base, { dati_variabili: payload });
+            const tid = Toast ? Toast.loading('Salvataggio variabili...') : null;
             await DataService.saveRecord(doi, combined);
-            alert('Salvato');
+            if (tid && Toast.update) { Toast.update(tid, 'Variabili salvate', 'success'); setTimeout(()=>Toast.dismiss(tid), 600); }
           } catch (e) {
             console.error('Salvataggio fallito', e);
+            if (Toast && Toast.error) Toast.error('Errore salvataggio variabili');
             alert('Errore durante il salvataggio');
           }
         }
