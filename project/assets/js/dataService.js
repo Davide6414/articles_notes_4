@@ -2,6 +2,23 @@
 (function (global) {
   const GAS_BASE = "https://script.google.com/macros/s/AKfycbxdltI8iJc5V47dLZqStX_-5L1_zK-0CQGQCIMyuKjKWlbGy6SmBd80W1qv4i15f1lW/exec";
 
+  function normalizeRecordForSave(doi, record) {
+    try {
+      const r = record || {};
+      const out = {
+        DOI: (doi || r.DOI || r.doi || '').trim(),
+        title: Array.isArray(r.title) ? r.title : (r.title ? [r.title] : []),
+        abstract: r.abstract != null ? r.abstract : null,
+      };
+      if (Array.isArray(r.user_notes)) out.user_notes = r.user_notes;
+      if (r.dettagli && typeof r.dettagli === 'object') out.dettagli = r.dettagli;
+      if (Array.isArray(r.dati_variabili)) out.dati_variabili = r.dati_variabili;
+      return out;
+    } catch (_) {
+      return { DOI: (doi || '').trim() };
+    }
+  }
+
   async function getAll() {
     const url = `${GAS_BASE}?op=all&_=${Date.now()}`;
     const res = await fetch(url, { method: 'GET', credentials: 'omit' });
@@ -19,13 +36,14 @@
   }
 
   async function saveRecord(doi, record) {
+    const payload = normalizeRecordForSave(doi, record);
     // Try POST JSON first
     try {
       const res = await fetch(GAS_BASE, {
         method: 'POST',
         credentials: 'omit',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ op: 'save', doi, record }),
+        body: JSON.stringify({ op: 'save', doi: payload.DOI, record: payload }),
       });
       if (res.ok) {
         const out = await res.json().catch(() => ({ ok: true }));
@@ -37,7 +55,7 @@
 
     // Try POST form-urlencoded as alternative
     try {
-      const body = `op=save&doi=${encodeURIComponent(doi)}&record=${encodeURIComponent(JSON.stringify(record))}`;
+      const body = `op=save&doi=${encodeURIComponent(payload.DOI)}&record=${encodeURIComponent(JSON.stringify(payload))}`;
       const resForm = await fetch(GAS_BASE, {
         method: 'POST',
         credentials: 'omit',
@@ -52,9 +70,9 @@
       // fall through
     }
     // Fallback GET (urlencoded data). Use chunking to avoid URL length limits
-    const jsonStr = JSON.stringify(record);
+    const jsonStr = JSON.stringify(payload);
     const enc = (s) => encodeURIComponent(s);
-    let url = `${GAS_BASE}?op=save&doi=${encodeURIComponent(doi)}`;
+    let url = `${GAS_BASE}?op=save&doi=${encodeURIComponent(payload.DOI)}`;
     if (jsonStr.length <= 1200) {
       url += `&data=${enc(jsonStr)}`;
     } else {
