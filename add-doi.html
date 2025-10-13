@@ -20,15 +20,18 @@
       .btn:hover { background: #f6f6f6; }
       .primary { background: #2563eb; border-color: #2563eb; color: #fff; }
       .danger { background: #fee2e2; border-color: #fecaca; }
-      .panel { padding: 12px; border: var(--border); border-radius: var(--radius); background: #fff; display:grid; gap:12px; }
+      .panel { padding: 12px; border: var(--border); border-radius: var(--radius); background: #fff; display: grid; gap: 12px; }
       .row { display: grid; gap: 6px; }
       label { font-size: 12px; color: #374151; }
       input[type="text"] { width: 100%; padding: 10px 12px; border: 1px solid #d0d0d0; border-radius: 8px; font-size: 14px; box-sizing: border-box; }
       .preview { display: grid; gap: 8px; }
       .field { font-size: 14px; }
-      .label { font-size: 12px; color: #6b7280; display:block; }
+      .label { font-size: 12px; color: #6b7280; display: block; }
       .error { color: #b91c1c; font-size: 13px; }
       .success { color: #065f46; font-size: 13px; }
+      .mode-switch { display: inline-flex; padding: 4px; border-radius: 9999px; background: #f3f4f6; border: 1px solid #e5e7eb; }
+      .mode-switch button { border: none; background: transparent; padding: 6px 12px; font-size: 13px; border-radius: 9999px; cursor: pointer; color: #374151; }
+      .mode-switch button.active { background: #2563eb; color: #fff; }
     </style>
   </head>
   <body>
@@ -44,17 +47,34 @@
     </div>
 
     <div class="panel">
-      <div class="row">
-        <label for="doiInput">DOI</label>
-        <input id="doiInput" type="text" placeholder="es. 10.1038/nphys1170" />
-      </div>
-      <div class="toolbar">
-        <button id="searchBtn" class="btn">Cerca</button>
-        <div id="status" class="sub"></div>
-      </div>
-      <div id="errorBox" class="error" style="display:none;"></div>
-      <div id="successBox" class="success" style="display:none;"></div>
-      <div id="preview" class="preview"></div>
+        <div class="mode-switch" role="tablist" aria-label="Seleziona il tipo di inserimento">
+          <button id="modeDoi" type="button" class="active" data-mode="doi" role="tab" aria-selected="true">Inserisci DOI</button>
+          <button id="modeManual" type="button" data-mode="manual" role="tab" aria-selected="false">Inserisci titolo manuale</button>
+        </div>
+
+        <div data-section="doi">
+          <div class="row">
+            <label for="doiInput">DOI</label>
+            <input id="doiInput" type="text" placeholder="es. 10.1038/nphys1170" />
+          </div>
+          <div class="toolbar">
+            <button id="searchBtn" class="btn">Cerca</button>
+            <div id="status" class="sub"></div>
+          </div>
+        </div>
+
+        <div data-section="manual" style="display:none;">
+          <div class="row">
+            <label for="manualTitleInput">Titolo senza DOI</label>
+            <input id="manualTitleInput" type="text" placeholder="es. Titolo articolo o libro" />
+          </div>
+          <div class="toolbar">
+            <button id="manualSaveBtn" class="btn">Aggiungi titolo senza DOI</button>
+          </div>
+        </div>
+        <div id="errorBox" class="error" style="display:none;"></div>
+        <div id="successBox" class="success" style="display:none;"></div>
+        <div id="preview" class="preview"></div>
     </div>
 
     <script>
@@ -66,13 +86,53 @@
         const errorBox = document.getElementById('errorBox');
         const successBox = document.getElementById('successBox');
         const statusEl = document.getElementById('status');
+        const manualTitleInput = document.getElementById('manualTitleInput');
+        const manualSaveBtn = document.getElementById('manualSaveBtn');
+        const modeButtons = Array.from(document.querySelectorAll('[data-mode]'));
+        const doiSection = document.querySelector('[data-section="doi"]');
+        const manualSection = document.querySelector('[data-section="manual"]');
 
         const DOI_REGEX = /^10\.\d{4,9}\/[\-._;()/:A-Z0-9]+$/i;
         let lastMessage = null;
+        let mode = 'doi';
+
+        function setMode(nextMode){
+          if (!nextMode || mode === nextMode) return;
+          mode = nextMode;
+          modeButtons.forEach(btn => {
+            const active = btn.dataset.mode === mode;
+            btn.classList.toggle('active', active);
+            btn.setAttribute('aria-selected', active ? 'true' : 'false');
+          });
+          doiSection.style.display = mode === 'doi' ? '' : 'none';
+          manualSection.style.display = mode === 'manual' ? '' : 'none';
+          saveBtn.style.display = mode === 'doi' ? '' : 'none';
+          if (mode === 'manual') {
+            statusEl.textContent = '';
+            searchBtn.disabled = false;
+            saveBtn.disabled = true;
+            lastMessage = null;
+            preview.innerHTML = '';
+            manualTitleInput.focus();
+          } else {
+            manualSaveBtn.disabled = false;
+            saveBtn.disabled = !lastMessage;
+            doiInput.focus();
+          }
+        }
 
         const params = new URLSearchParams(location.search);
         const initial = params.get('doi') || '';
-        if (initial) doiInput.value = initial;
+        if (initial) {
+          doiInput.value = initial;
+        } else {
+          doiInput.focus();
+        }
+
+        modeButtons.forEach(btn => btn.addEventListener('click', (event) => {
+          event.preventDefault();
+          setMode(btn.dataset.mode);
+        }));
 
         function setBusy(b){
           searchBtn.disabled = !!b;
@@ -163,8 +223,53 @@
           }
         }
 
+        function slugifyTitle(title){
+          return title
+            .toLowerCase()
+            .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+            .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')
+            .slice(0, 80);
+        }
+
+        function minimalRecordFromManualTitle(manualId, title){
+          return {
+            DOI: manualId,
+            title: [title],
+            abstract: null
+          };
+        }
+
+        async function saveManualTitle(){
+          const rawTitle = (manualTitleInput.value || '').trim();
+          errorBox.style.display='none'; successBox.style.display='none';
+          if (!rawTitle) {
+            showError('Inserisci un titolo da salvare.');
+            manualTitleInput.focus();
+            return;
+          }
+          const slug = slugifyTitle(rawTitle) || 'titolo';
+          const manualId = `manual:${slug}-${Date.now()}`;
+          const record = minimalRecordFromManualTitle(manualId, rawTitle);
+          try {
+            manualSaveBtn.disabled = true;
+            const tid = Toast ? Toast.loading('Salvataggio in corso...') : null;
+            await DataService.saveRecord(manualId, record);
+            if (tid && Toast.update) { Toast.update(tid, 'Titolo salvato', 'success'); setTimeout(()=>Toast.dismiss(tid), 600); }
+            showSuccess('Titolo salvato correttamente.');
+            manualTitleInput.value = '';
+            setTimeout(() => { window.location.href = `details.html?doi=${encodeURIComponent(manualId)}`; }, 500);
+          } catch(e){
+            console.error('Salvataggio manuale fallito', e);
+            if (Toast && Toast.error) Toast.error('Errore durante il salvataggio');
+            showError('Errore durante il salvataggio del titolo.');
+          } finally {
+            manualSaveBtn.disabled = false;
+          }
+        }
+
         searchBtn.addEventListener('click', search);
         saveBtn.addEventListener('click', save);
+        manualSaveBtn.addEventListener('click', saveManualTitle);
         doiInput.addEventListener('keydown', (e)=>{ if ((e.ctrlKey||e.metaKey) && e.key==='Enter') search(); });
       })();
     </script>
