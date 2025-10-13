@@ -32,6 +32,10 @@
       .vars-table th { background: #f9fafb; text-align: left; }
       .chips { display: flex; flex-wrap: wrap; gap: 6px; }
       .chip { font-size: 12px; padding: 6px 10px; border-radius: 9999px; border: 1px solid #d1d5db; background: #f8fafc; }
+      .dash-columns { display: grid; gap: 4px; }
+      .dash-row { display: grid; grid-template-columns: auto 1fr; gap: 6px; align-items: start; }
+      .dash-bullet { color: #9ca3af; font-weight: 600; }
+      .dash-text { display: block; }
 
       /* Edit */
       .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
@@ -120,12 +124,38 @@
           }
         }
 
+        function fillDashColumns(container, value) {
+          const raw = value == null ? '' : String(value);
+          const trimmed = raw.trim();
+          container.textContent = '';
+          if (trimmed.startsWith('-')) {
+            const parts = trimmed.split(/\s*-\s*/).map(s => s.trim()).filter(Boolean);
+            if (parts.length > 1) {
+              const list = document.createElement('div');
+              list.className = 'dash-columns';
+              parts.forEach(part => {
+                const row = document.createElement('div');
+                row.className = 'dash-row';
+                const bullet = document.createElement('span'); bullet.className = 'dash-bullet'; bullet.textContent = '–';
+                const text = document.createElement('span'); text.className = 'dash-text'; text.textContent = part;
+                row.appendChild(bullet);
+                row.appendChild(text);
+                list.appendChild(row);
+              });
+              container.appendChild(list);
+              return;
+            }
+          }
+          container.textContent = raw;
+        }
+
         function row(label, value) {
           if (value == null || value === '') return null;
           const wrap = document.createElement('div');
           wrap.className = 'details-row';
           const l = document.createElement('span'); l.className = 'details-label'; l.textContent = label;
-          const v = document.createElement('div'); v.textContent = String(value);
+          const v = document.createElement('div');
+          fillDashColumns(v, value);
           wrap.appendChild(l); wrap.appendChild(v);
           return wrap;
         }
@@ -194,9 +224,9 @@
             const tbody = document.createElement('tbody');
             for (const v of vars) {
               const tr = document.createElement('tr');
-              const td1 = document.createElement('td'); td1.textContent = v?.dependent || ''; tr.appendChild(td1);
-              const td2 = document.createElement('td'); td2.textContent = v?.independent || ''; tr.appendChild(td2);
-              const td3 = document.createElement('td'); td3.textContent = v?.note || ''; tr.appendChild(td3);
+              const td1 = document.createElement('td'); fillDashColumns(td1, v?.dependent || ''); tr.appendChild(td1);
+              const td2 = document.createElement('td'); fillDashColumns(td2, v?.independent || ''); tr.appendChild(td2);
+              const td3 = document.createElement('td'); fillDashColumns(td3, v?.note || ''); tr.appendChild(td3);
               tbody.appendChild(tr);
             }
             table.appendChild(tbody);
