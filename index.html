@@ -250,6 +250,24 @@
           return map[type];
         }
 
+        function formatNoteText(raw) {
+          if (raw == null) return '';
+          const normalized = String(raw).replace(/\r\n/g, '\n');
+          const trimmed = normalized.trim();
+          if (!trimmed) return '';
+
+          const startsWithBullet = /^-\s*/.test(trimmed);
+          const hasLineBullets = /\n\s*-\s*/.test(trimmed);
+          if (startsWithBullet || hasLineBullets) {
+            const parts = trimmed.split(/\s*-\s+/).map(part => part.trim()).filter(Boolean);
+            if (parts.length > 1) {
+              return parts.map(part => `- ${part}`).join('\n');
+            }
+          }
+
+          return trimmed;
+        }
+
         function loadCollapsed() {
           try { return JSON.parse(localStorage.getItem(COLLAPSE_KEY) || '{}') || {}; } catch (_) { return {}; }
         }
@@ -463,10 +481,15 @@
           }
 
           if (note.text) {
-            const p = document.createElement('p');
-            p.textContent = note.text;
-            p.style.margin = '4px 0';
-            card.appendChild(p);
+            const formatted = formatNoteText(note.text);
+            if (formatted) {
+              const p = document.createElement('p');
+              p.textContent = formatted;
+              p.style.margin = '4px 0';
+              p.style.whiteSpace = 'pre-wrap';
+              p.style.paddingLeft = '12px';
+              card.appendChild(p);
+            }
           }
 
           if (note.comment) {
