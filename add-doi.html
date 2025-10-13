@@ -52,6 +52,13 @@
         <button id="searchBtn" class="btn">Cerca</button>
         <div id="status" class="sub"></div>
       </div>
+      <div class="row">
+        <label for="manualTitleInput">Titolo senza DOI</label>
+        <input id="manualTitleInput" type="text" placeholder="es. Titolo articolo o libro" />
+      </div>
+      <div class="toolbar">
+        <button id="manualSaveBtn" class="btn">Aggiungi titolo senza DOI</button>
+      </div>
       <div id="errorBox" class="error" style="display:none;"></div>
       <div id="successBox" class="success" style="display:none;"></div>
       <div id="preview" class="preview"></div>
@@ -66,6 +73,8 @@
         const errorBox = document.getElementById('errorBox');
         const successBox = document.getElementById('successBox');
         const statusEl = document.getElementById('status');
+        const manualTitleInput = document.getElementById('manualTitleInput');
+        const manualSaveBtn = document.getElementById('manualSaveBtn');
 
         const DOI_REGEX = /^10\.\d{4,9}\/[\-._;()/:A-Z0-9]+$/i;
         let lastMessage = null;
@@ -163,8 +172,53 @@
           }
         }
 
+        function slugifyTitle(title){
+          return title
+            .toLowerCase()
+            .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+            .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')
+            .slice(0, 80);
+        }
+
+        function minimalRecordFromManualTitle(manualId, title){
+          return {
+            DOI: manualId,
+            title: [title],
+            abstract: null
+          };
+        }
+
+        async function saveManualTitle(){
+          const rawTitle = (manualTitleInput.value || '').trim();
+          errorBox.style.display='none'; successBox.style.display='none';
+          if (!rawTitle) {
+            showError('Inserisci un titolo da salvare.');
+            manualTitleInput.focus();
+            return;
+          }
+          const slug = slugifyTitle(rawTitle) || 'titolo';
+          const manualId = `manual:${slug}-${Date.now()}`;
+          const record = minimalRecordFromManualTitle(manualId, rawTitle);
+          try {
+            manualSaveBtn.disabled = true;
+            const tid = Toast ? Toast.loading('Salvataggio in corso...') : null;
+            await DataService.saveRecord(manualId, record);
+            if (tid && Toast.update) { Toast.update(tid, 'Titolo salvato', 'success'); setTimeout(()=>Toast.dismiss(tid), 600); }
+            showSuccess('Titolo salvato correttamente.');
+            manualTitleInput.value = '';
+            setTimeout(() => { window.location.href = `details.html?doi=${encodeURIComponent(manualId)}`; }, 500);
+          } catch(e){
+            console.error('Salvataggio manuale fallito', e);
+            if (Toast && Toast.error) Toast.error('Errore durante il salvataggio');
+            showError('Errore durante il salvataggio del titolo.');
+          } finally {
+            manualSaveBtn.disabled = false;
+          }
+        }
+
         searchBtn.addEventListener('click', search);
         saveBtn.addEventListener('click', save);
+        manualSaveBtn.addEventListener('click', saveManualTitle);
         doiInput.addEventListener('keydown', (e)=>{ if ((e.ctrlKey||e.metaKey) && e.key==='Enter') search(); });
       })();
     </script>
