@@ -78,8 +78,11 @@
         const viewWrap = document.getElementById('viewWrap');
         const editWrap = document.getElementById('editWrap');
 
+        const manualEntry = doi.startsWith('manual:');
         if (!doi) {
           pageSub.textContent = 'DOI non specificato';
+        } else if (manualEntry) {
+          pageSub.textContent = 'Titolo inserito manualmente (nessun DOI disponibile)';
         } else {
           pageSub.textContent = 'DOI: ' + doi;
         }
@@ -130,7 +133,10 @@
         function renderView() {
           viewWrap.innerHTML = '';
           if (!entry) {
-            const empty = document.createElement('div'); empty.textContent = 'Nessun dato per questo DOI.'; viewWrap.appendChild(empty); return;
+            const empty = document.createElement('div');
+            empty.textContent = manualEntry ? 'Nessun dato per questo titolo.' : 'Nessun dato per questo DOI.';
+            viewWrap.appendChild(empty);
+            return;
           }
           const d = entry.dettagli || {};
 
