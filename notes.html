@@ -294,6 +294,30 @@
           inputEl.value = list.join(', ');
         }
 
+        function addOrReplaceLastCsv(inputEl, value){
+          const raw = String(inputEl.value||'');
+          const tokens = raw.split(',');
+          const hasTrailingComma = /,\s*$/.test(raw);
+          const selected = String(value);
+          if (hasTrailingComma || tokens.length === 0) {
+            // Simple append when last char is comma or empty
+            appendCsv(inputEl, selected);
+            return;
+          }
+          // Replace last partial token
+          const head = tokens.slice(0, -1).map(s=>s.trim()).filter(Boolean);
+          const out = head.concat([selected]);
+          // Deduplicate case-insensitively, keeping first occurrences in order
+          const seen = new Set();
+          const uniq = [];
+          for (const t of out) {
+            const L = t.toLowerCase();
+            if (seen.has(L)) continue;
+            seen.add(L); uniq.push(t);
+          }
+          inputEl.value = uniq.join(', ');
+        }
+
         function renderFacetChips(){
           // Types (no filtering)
           typeChips.innerHTML = '';
@@ -312,7 +336,7 @@
           } else {
             list.forEach(t=>{
               const s=document.createElement('span'); s.className='chip tag'; s.textContent=t;
-              s.onclick=()=> { appendCsv(tagsInput, t); renderFacetChips(); };
+              s.onclick=()=> { addOrReplaceLastCsv(tagsInput, t); renderFacetChips(); };
               tagChips.appendChild(s);
             });
           }
@@ -336,7 +360,7 @@
           tagsSelect.innerHTML = '';
           const optEmptyT = document.createElement('option'); optEmptyT.value=''; optEmptyT.textContent='— Aggiungi tag —'; tagsSelect.appendChild(optEmptyT);
           facets.tags.forEach(t=>{ const op=document.createElement('option'); op.value=t; op.textContent=t; tagsSelect.appendChild(op); });
-          tagsSelect.onchange = () => { if (tagsSelect.value) { appendCsv(tagsInput, tagsSelect.value); tagsSelect.value = ''; renderFacetChips(); } };
+          tagsSelect.onchange = () => { if (tagsSelect.value) { addOrReplaceLastCsv(tagsInput, tagsSelect.value); tagsSelect.value = ''; renderFacetChips(); } };
 
           // Animals select (appende al campo, poi resetta)
           animalsSelect.innerHTML = '';
