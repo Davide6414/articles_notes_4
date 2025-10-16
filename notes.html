@@ -90,6 +90,20 @@
         </div>
       </div>
 
+      <div class="grid">
+        <div class="row">
+          <label for="importanceRange">Importanza (1–10)</label>
+          <div style="display:flex; align-items:center; gap:8px;">
+            <input id="importanceRange" type="range" min="1" max="10" step="1" value="1" style="flex:1;" />
+            <input id="importanceNumber" type="number" min="1" max="10" step="1" value="1" style="width:70px;" />
+          </div>
+        </div>
+        <div class="row">
+          <label>Anteprima colore</label>
+          <div id="importancePreview" style="height:36px; border-radius:8px; border:1px solid #d0d0d0;"></div>
+        </div>
+      </div>
+
       <div class="row">
         <label for="commentInput">Commento</label>
         <textarea id="commentInput" rows="2" placeholder="Commento aggiuntivo..."></textarea>
@@ -172,6 +186,40 @@
         }
 
         let extractFromUrl = true;
+        const importanceRange = document.getElementById('importanceRange');
+        const importanceNumber = document.getElementById('importanceNumber');
+        const importancePreview = document.getElementById('importancePreview');
+
+        function clampImportanza(v){
+          const n = parseInt(v, 10);
+          if (isNaN(n)) return 1;
+          return Math.max(1, Math.min(10, n));
+        }
+
+        function importanceToColor(val){
+          const v = clampImportanza(val);
+          const hue = 55 - (v - 1) * (55 / 9); // from ~yellow to red
+          const sat = 78 + (v - 1) * (20 / 9); // 78% -> ~98%
+          const light = 96 - (v - 1) * (9 / 9); // 96% -> 87%
+          return `hsl(${hue.toFixed(1)} ${sat.toFixed(1)}% ${light.toFixed(1)}%)`;
+        }
+
+        function updateImportancePreview(){
+          const v = clampImportanza(importanceRange.value || importanceNumber.value || 1);
+          importancePreview.style.background = importanceToColor(v);
+        }
+
+        function syncImportance(from){
+          if (from === 'range') {
+            importanceNumber.value = clampImportanza(importanceRange.value);
+          } else {
+            importanceRange.value = clampImportanza(importanceNumber.value);
+          }
+          updateImportancePreview();
+        }
+
+        importanceRange.addEventListener('input', () => syncImportance('range'));
+        importanceNumber.addEventListener('input', () => syncImportance('number'));
 
         function applyToggleState(){
           extractFromUrl = !!extractToggle.checked;
@@ -313,6 +361,10 @@
           imageUrlInput.value = n.imageUrl || '';
           animalsInput.value = Array.isArray(n.animals) ? n.animals.join(', ') : (n.animals || '');
           commentInput.value = n.comment || '';
+          const imp = clampImportanza(n.importanza == null ? 1 : n.importanza);
+          importanceRange.value = imp;
+          importanceNumber.value = imp;
+          updateImportancePreview();
           // Re-estrai il testo dall'URL per coerenza; se vuoto ma esiste testo salvato, abilita editing manuale
           refreshExtractedText(true);
           if (!noteText.value && n.text) {
@@ -356,6 +408,7 @@
                 imageUrl: (imageUrlInput.value || '').trim() || null,
                 comment: (commentInput.value || '').trim() || null,
                 animals: splitCsv(animalsInput.value),
+                importanza: clampImportanza(importanceRange.value || importanceNumber.value || 1),
                 createdAt: (editingNote && editingNote.createdAt) || now,
               },
               editingNote ? {} : {}
@@ -379,6 +432,10 @@
         saveBtn.addEventListener('click', save);
 
         applyToggleState();
+        // Init importance controls
+        importanceRange.value = 1;
+        importanceNumber.value = 1;
+        updateImportancePreview();
         loadAll();
       })();
     </script>

@@ -250,6 +250,19 @@
           return map[type];
         }
 
+        function clampImportanza(v){
+          const n = parseInt(v, 10);
+          if (isNaN(n)) return 1;
+          return Math.max(1, Math.min(10, n));
+        }
+        function importanceToBg(val){
+          const v = clampImportanza(val);
+          const hue = 55 - (v - 1) * (55 / 9); // yellow->red
+          const sat = 78 + (v - 1) * (20 / 9); // 78%->~98%
+          const light = 96 - (v - 1) * (9 / 9); // 96%->87%
+          return `hsl(${hue.toFixed(1)} ${sat.toFixed(1)}% ${light.toFixed(1)}%)`;
+        }
+
         function formatNoteText(raw) {
           if (raw == null) return '';
           const normalized = String(raw).replace(/\r\n/g, '\n');
@@ -446,6 +459,9 @@
           card.className = 'note-card';
           const accent = getTypeColor(note.type);
           card.style.setProperty('--accent', accent);
+          // Background based on importanza 1..10 (pale yellow -> intense red)
+          const impBg = importanceToBg(note && note.importanza != null ? note.importanza : 1);
+          card.style.background = impBg;
 
           const header = document.createElement('div');
           header.className = 'note-header';
