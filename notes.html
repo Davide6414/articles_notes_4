@@ -295,10 +295,29 @@
         }
 
         function renderFacetChips(){
+          // Types (no filtering)
           typeChips.innerHTML = '';
           facets.types.forEach(t=>{ const s=document.createElement('span'); s.className='chip'; s.textContent=t; s.onclick=()=>{ typeInput.value = t; }; typeChips.appendChild(s); });
+
+          // Tags (filtered by last partial token typed in tagsInput)
           tagChips.innerHTML = '';
-          facets.tags.forEach(t=>{ const s=document.createElement('span'); s.className='chip tag'; s.textContent=t; s.onclick=()=> appendCsv(tagsInput, t); tagChips.appendChild(s); });
+          const raw = (tagsInput.value || '');
+          const lastToken = raw.split(',').pop().trim().toLowerCase();
+          const list = lastToken ? facets.tags.filter(t => t.toLowerCase().includes(lastToken)) : facets.tags;
+          if (list.length === 0 && lastToken) {
+            const m = document.createElement('div');
+            m.className = 'small';
+            m.textContent = 'Nessun tag corrispondente';
+            tagChips.appendChild(m);
+          } else {
+            list.forEach(t=>{
+              const s=document.createElement('span'); s.className='chip tag'; s.textContent=t;
+              s.onclick=()=> { appendCsv(tagsInput, t); renderFacetChips(); };
+              tagChips.appendChild(s);
+            });
+          }
+
+          // Animals (no filtering)
           animalChips.innerHTML = '';
           facets.animals.forEach(a=>{ const s=document.createElement('span'); s.className='chip animal'; s.textContent=a; s.onclick=()=> appendCsv(animalsInput, a); animalChips.appendChild(s); });
         }
@@ -317,7 +336,7 @@
           tagsSelect.innerHTML = '';
           const optEmptyT = document.createElement('option'); optEmptyT.value=''; optEmptyT.textContent='— Aggiungi tag —'; tagsSelect.appendChild(optEmptyT);
           facets.tags.forEach(t=>{ const op=document.createElement('option'); op.value=t; op.textContent=t; tagsSelect.appendChild(op); });
-          tagsSelect.onchange = () => { if (tagsSelect.value) { appendCsv(tagsInput, tagsSelect.value); tagsSelect.value = ''; } };
+          tagsSelect.onchange = () => { if (tagsSelect.value) { appendCsv(tagsInput, tagsSelect.value); tagsSelect.value = ''; renderFacetChips(); } };
 
           // Animals select (appende al campo, poi resetta)
           animalsSelect.innerHTML = '';
@@ -377,6 +396,7 @@
         urlInput.addEventListener('input', () => refreshExtractedText());
         urlInput.addEventListener('change', () => refreshExtractedText());
         extractToggle.addEventListener('change', applyToggleState);
+        tagsInput.addEventListener('input', () => renderFacetChips());
 
         async function save(){
           const doi = doiSelect.value;
