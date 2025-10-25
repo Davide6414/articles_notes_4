@@ -11,9 +11,9 @@
       :root {
         --radius: 12px;
         --gap: 12px;
-        --brand: #10b981;     /* verde acqua */
-        --brand-2: #06b6d4;   /* azzurro */
-        --brand-3: #a7f3d0;   /* verde chiaro */
+        --brand: #10b981;
+        --brand-2: #06b6d4;
+        --brand-3: #a7f3d0;
         --bg: #f8fafc;
         --surface: #ffffff;
         --border-color: #e2e8f0;
@@ -25,7 +25,7 @@
         /* Libreria */
         --book-shadow: rgba(0,0,0,.15);
         --shelf-wood-1: #d8c0a8;
-        --shelf-wood-2: #c1a186;
+        --shelf-wood-2: #c1a186);
       }
 
       body {
@@ -35,6 +35,7 @@
         color: var(--text);
         background: var(--bg);
       }
+      body.modal-open { overflow: hidden; }
 
       button, .btn {
         font-size: 14px;
@@ -52,7 +53,7 @@
 
       .header { margin-bottom: 1rem; }
 
-      /* Filters (immutati) */
+      /* Filters */
       .filters { margin-top: 16px; padding: 12px; border: 1px solid #e5e7eb; border-radius: 12px; background: #fafafa; }
       .filters h2 { margin: 0; font-size: 16px; }
       .filters-header { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
@@ -70,7 +71,7 @@
       .filters-chips { display: flex; flex-wrap: wrap; gap: 6px; }
       .chip.rem { cursor: pointer; }
 
-      /* ====== Libreria 3D (sostituisce la griglia delle card) ====== */
+      /* ===== Libreria 3D ===== */
       #notesSection { margin-top: 16px; }
       .bookcase {
         position: relative;
@@ -87,7 +88,7 @@
         flex-wrap: wrap;
         gap: 10px;
         align-items: flex-end;
-        padding: 18px 8px 26px 8px; /* spazio per bordo ripiano */
+        padding: 18px 8px 26px 8px;
         border-radius: 10px;
         margin-bottom: 10px;
       }
@@ -96,14 +97,12 @@
         position: absolute;
         left: 6px; right: 6px; bottom: 6px; height: 14px;
         border-radius: 8px;
-        background:
-          linear-gradient(180deg, var(--shelf-wood-1), var(--shelf-wood-2));
+        background: linear-gradient(180deg, var(--shelf-wood-1), var(--shelf-wood-2));
         box-shadow: 0 6px 14px rgba(0,0,0,0.08) inset, 0 2px 10px rgba(0,0,0,0.12);
       }
-
       .book {
-        --h: 140px;     /* altezza dorso */
-        --w: 28px;      /* spessore */
+        --h: 140px;
+        --w: 28px;
         --cover: #bbe7ff;
         position: relative;
         width: var(--w);
@@ -115,7 +114,6 @@
       }
       .book:focus { outline: 2px solid #94a3b8; outline-offset: 2px; }
       .book:hover { transform: translateY(-2px) rotateZ(-.4deg); }
-
       .spine {
         position: absolute; inset: 0;
         border-radius: 6px;
@@ -139,21 +137,18 @@
         overflow: hidden;
         word-break: break-word;
         text-shadow: 0 1px 0 rgba(255,255,255,.6);
-        /* dimensione gestita via JS */
       }
       .book::before{
         content:""; position:absolute; right:-4px; top:2px; bottom:2px; width:4px; border-radius:2px;
         background: repeating-linear-gradient(180deg, #f3f4f6 0 2px, #e5e7eb 2px 4px);
         box-shadow: inset 0 0 1px rgba(0,0,0,.25);
       }
-
       .stick-note{
         position:absolute; top:4px; right:-10px;
         background:#facc15; color:#1e1e1e; font-size:11px; font-weight:800;
         padding:2px 5px; border-radius:3px; transform:rotate(8deg);
         border:1px solid rgba(0,0,0,.2); box-shadow:0 2px 6px rgba(0,0,0,.18);
       }
-
       .book-tooltip{
         position:absolute; left:50%; bottom:calc(100% + 10px);
         transform: translateX(-50%) translateY(8px);
@@ -170,10 +165,82 @@
       }
       .book:hover .book-tooltip{ opacity:1; transform: translateX(-50%) translateY(0); }
 
-      /* Mobile */
+      /* ===== Layout originale delle note (usato dentro la modale) ===== */
+      .note-card {
+        --accent: var(--brand-2);
+        border: 1px solid var(--border-color);
+        border-left: 6px solid var(--accent);
+        border-radius: 14px;
+        padding: 12px;
+        background: var(--surface);
+        display: grid;
+        gap: 8px;
+        box-shadow: 0 2px 8px rgba(2, 132, 199, 0.06);
+      }
+      .note-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
+      .note-title { margin: 0; font-size: 16px; }
+      .note-sub { color: var(--muted); font-size: 12px; }
+      .type-pill {
+        font-size: 12px; padding: 2px 8px; border-radius: 9999px;
+        background: var(--brand-3); color: #065f46; border: 1px solid rgba(0,0,0,0.06); white-space: nowrap;
+      }
+      .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+      .chip { font-size: 12px; padding: 4px 10px; border-radius: 9999px; border: 1px solid var(--border-color); background: #f8fafc; }
+      .chip.tag { background: var(--chip-bg); border-color: var(--chip-border); }
+      .chip.animal { background: #fefce8; border-color: #fde68a; }
+      .image-wrap { border-radius: 10px; overflow: hidden; border: 1px solid #e5e7eb; }
+      .image-preview { width: 100%; max-height: 220px; object-fit: cover; display: block; }
+      .card-actions { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-top: 4px; }
+      .action-left, .action-right { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+      .btn-link { background: #e0f2fe; border-color: #bae6fd; }
+
+      /* ===== Modale ===== */
+      .modal-backdrop {
+        position: fixed; inset: 0; background: rgba(15, 23, 42, 0.5);
+        backdrop-filter: blur(2px);
+        opacity: 0; pointer-events: none; transition: opacity .18s ease;
+        z-index: 50;
+      }
+      .modal-backdrop.show { opacity: 1; pointer-events: auto; }
+      .modal {
+        position: fixed; inset: 0; display: grid; place-items: center; z-index: 51; pointer-events: none;
+      }
+      .modal .card {
+        width: min(1000px, 92vw);
+        max-height: 86vh;
+        background: #fff;
+        border: 1px solid #e5e7eb;
+        border-radius: 16px;
+        box-shadow: 0 30px 80px rgba(0,0,0,.25);
+        display: grid; grid-template-rows: auto auto 1fr;
+        transform: scale(.98); opacity: 0; transition: transform .18s ease, opacity .18s ease;
+        pointer-events: auto; overflow: hidden;
+      }
+      .modal.show .card { transform: scale(1); opacity: 1; }
+      .modal-header {
+        display: flex; align-items: center; justify-content: space-between; gap: 12px;
+        padding: 14px 16px; border-bottom: 1px solid #e5e7eb;
+      }
+      .modal-title {
+        margin: 0; font-weight: 800; line-height: 1.2; /* font-size dinamico via JS */
+      }
+      .modal-actions {
+        display: flex; gap: 8px; align-items: center; padding: 10px 16px; border-bottom: 1px solid #e5e7eb;
+      }
+      .modal-body {
+        padding: 14px 16px; overflow: auto; display: grid; gap: 12px;
+        background: linear-gradient(180deg, #f8fafc, #ffffff);
+      }
+      .modal-close {
+        border-radius: 10px; width: 34px; height: 34px; font-size: 18px; line-height: 1;
+        display: grid; place-items: center;
+      }
+
+      /* Mobile tweaks */
       @media (max-width: 640px) {
         body { margin: 1rem; }
         .book { --h: 120px; --w: 24px; }
+        .modal .card { width: 96vw; max-height: 90vh; }
       }
     </style>
   </head>
@@ -238,6 +305,23 @@
       <div id="notesContainer"></div>
     </section>
 
+    <!-- Modale -->
+    <div id="modalBackdrop" class="modal-backdrop" aria-hidden="true"></div>
+    <div id="bookModal" class="modal" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+      <div class="card">
+        <div class="modal-header">
+          <h3 id="modalTitle" class="modal-title">—</h3>
+          <button id="modalClose" class="btn modal-close" aria-label="Chiudi">×</button>
+        </div>
+        <div class="modal-actions">
+          <button id="modalBtnDetails" class="btn" type="button">Dettagli</button>
+          <button id="modalBtnNotes" class="btn" type="button">Note</button>
+          <button id="modalBtnEdit" class="btn primary" type="button">Modifica</button>
+        </div>
+        <div id="modalBody" class="modal-body"></div>
+      </div>
+    </div>
+
     <script>
       (function () {
         const notesContainer = document.getElementById('notesContainer');
@@ -255,13 +339,22 @@
         const applyAdv = document.getElementById('applyAdv');
         const clearAdv = document.getElementById('clearAdv');
 
+        // Modal refs
+        const modalBackdrop = document.getElementById('modalBackdrop');
+        const bookModal = document.getElementById('bookModal');
+        const modalTitle = document.getElementById('modalTitle');
+        const modalClose = document.getElementById('modalClose');
+        const modalBody = document.getElementById('modalBody');
+        const modalBtnDetails = document.getElementById('modalBtnDetails');
+        const modalBtnNotes = document.getElementById('modalBtnNotes');
+        const modalBtnEdit = document.getElementById('modalBtnEdit');
+
         let db = {};
         const TYPE_COLOR_KEY = 'typeColors.v1';
         const FILTERS_COLLAPSE_KEY = 'filtersCollapsed.v1';
         let facets = { types: [], tags: [], animals: [], methods: [] };
         let filters = { title: '', types: new Set(), tags: new Set(), animals: new Set(), methods: new Set() };
 
-        /* ===== util originali (immutati/riusati) ===== */
         function loadTypeColors() {
           try { return JSON.parse(localStorage.getItem(TYPE_COLOR_KEY) || '{}') || {}; } catch (_) { return {}; }
         }
@@ -270,8 +363,8 @@
         }
         function randomPastel() {
           const h = Math.floor(Math.random() * 360);
-          const s = 70; // percent
-          const l = 88; // percent
+          const s = 70;
+          const l = 88;
           return `hsl(${h} ${s}% ${l}%)`;
         }
         function getTypeColor(type) {
@@ -291,9 +384,9 @@
         }
         function importanceToBg(val){
           const v = clampImportanza(val);
-          const hue = 55 - (v - 1) * (55 / 9); // yellow->red
-          const sat = 78 + (v - 1) * (20 / 9); // 78%->~98%
-          const light = 96 - (v - 1) * (9 / 9); // 96%->87%
+          const hue = 55 - (v - 1) * (55 / 9);
+          const sat = 78 + (v - 1) * (20 / 9);
+          const light = 96 - (v - 1) * (9 / 9);
           return `hsl(${hue.toFixed(1)} ${sat.toFixed(1)}% ${light.toFixed(1)}%)`;
         }
 
@@ -330,24 +423,17 @@
           const d = (entry && entry.dettagli) || {};
           const parts = [];
           const push = (v) => { if (v != null && String(v).trim()) parts.push(String(v)); };
-          // General
           push(d.ecosistema); push(d.background); push(d.main_objective); push(d.sub_objective); push(d.biological_organization);
-          // Temporal
           if (d.temporal_scale) { push(d.temporal_scale.start); push(d.temporal_scale.end); push(d.temporal_scale.resolution); }
-          // Spatial
           if (d.spatial_scale) { push(d.spatial_scale.place); push(d.spatial_scale.lat); push(d.spatial_scale.long); push(d.spatial_scale.description); }
-          // Methods
           const mm = d.methods;
           (Array.isArray(mm) ? mm : (mm ? [String(mm)] : [])).forEach(push);
-          // Variables
           if (Array.isArray(d.variables)) d.variables.forEach(v => { if (!v) return; push(v.dependent); push(v.independent); push(v.note); });
-          // Outputs + Comments
           push(d.main_outputs);
           if (d.commenti) { push(d.commenti.difetti); push(d.commenti.pregi); push(d.commenti.spunti); push(d.commenti.idee_future); }
           return parts.join(' ').toLowerCase();
         }
 
-        /* ===== caricamento e facets ===== */
         async function loadAll() {
           const tid = (window.Toast && Toast.loading) ? Toast.loading('Caricamento dati...') : null;
           try {
@@ -360,7 +446,7 @@
           }
           computeFacets();
           renderFilters();
-          renderNotes();      // ora renderizza libreria
+          renderNotes();
         }
 
         function computeFacets() {
@@ -389,13 +475,10 @@
           };
         }
 
-        /* ===== filtri (immutati) ===== */
         function renderFilters() {
-          // Title input
           filterTitleEl.value = filters.title;
           filterTitleEl.oninput = () => { filters.title = (filterTitleEl.value || '').toLowerCase().trim(); renderNotes(); };
 
-          // Populate advanced dropdown selects
           function populateMulti(sel, values, selectedSet){
             sel.innerHTML = '';
             for (const v of values){ const op=document.createElement('option'); op.value=v; op.textContent=v; op.selected = selectedSet.has(v); sel.appendChild(op); }
@@ -418,7 +501,6 @@
             renderFilters(); renderNotes();
           };
 
-          // Dropdown open/close
           function updateAdvBtnLabel(){
             const cnt = filters.types.size + filters.tags.size + filters.animals.size + filters.methods.size;
             advBtn.textContent = cnt ? `Seleziona… (${cnt})` : 'Seleziona…';
@@ -427,7 +509,6 @@
           advBtn.onclick = (e) => { e.stopPropagation(); advDropdown.classList.toggle('open'); };
           document.addEventListener('click', (e) => { if (!advDropdown.contains(e.target)) advDropdown.classList.remove('open'); });
 
-          // Collapsible filters handling
           const collapsed = loadFiltersCollapsed();
           filtersEl.classList.toggle('collapsed', collapsed);
           if (filtersCollapseBtn) {
@@ -442,7 +523,6 @@
             };
           }
 
-          // Render selected filters as removable chips
           function renderSelectedChips(){
             filtersChips.innerHTML = '';
             const addChip = (label, val, removeFn) => {
@@ -463,7 +543,6 @@
           renderSelectedChips();
         }
 
-        /* ===== nuova rappresentazione: libreria ===== */
         function renderNotes() {
           notesContainer.innerHTML = '';
 
@@ -477,7 +556,6 @@
             return;
           }
 
-          // Precalcola mappa colori per tutti i type presenti (riusato)
           try {
             const types = new Set();
             for (const doi of dois) {
@@ -493,18 +571,15 @@
             if (changed) saveTypeColors(map);
           } catch (_) {}
 
-          // Ordina per titolo
           const sections = dois.map(doi => {
             const entry = db[doi] || {};
             const title = getTitle(entry) || doi;
             return { doi, entry, title };
           }).sort((a, b) => a.title.localeCompare(b.title, undefined, { sensitivity: 'base' }));
 
-          // Contenitore libreria con più ripiani (righe auto)
           const bookcase = document.createElement('div');
           bookcase.className = 'bookcase';
 
-          // Parametro: libri per ripiano (responsive semplice)
           const perShelf = window.innerWidth < 700 ? 10 : 16;
           let shelfEl = null, countInRow = 0;
 
@@ -515,22 +590,17 @@
             if (!textOk) continue;
 
             const allNotes = Array.isArray(entry.user_notes) ? entry.user_notes : (entry.user_note ? [entry.user_note] : []);
-            // sort by date desc
             allNotes.sort((a, b) => {
               const ta = a && a.createdAt ? new Date(a.createdAt).getTime() : 0;
               const tb = b && b.createdAt ? new Date(b.createdAt).getTime() : 0;
               return tb - ta;
             });
 
-            // filtra per i filtri attivi
             const visible = allNotes.filter(n => matchesFilters(entry, n));
             const count = visible.length;
-
-            // Se filtri avanzati attivi e count==0, nascondi come prima
             const advancedActive = (filters.types.size || filters.tags.size || filters.animals.size || filters.methods.size);
             if (advancedActive && count === 0) continue;
 
-            // colore dorso: dal primo type visibile, fallback pastel
             const firstType = (visible[0] && visible[0].type) || (allNotes[0] && allNotes[0].type) || null;
             const cover = getTypeColor(firstType);
 
@@ -545,12 +615,11 @@
             book.type = 'button';
             book.className = 'book';
             book.style.setProperty('--cover', cover);
-            // altezza/spessore in base al numero note (subtle scaling)
             const h = 120 + Math.min(60, count * 4);
             const w = 22 + Math.min(12, Math.ceil(count / 2));
             book.style.setProperty('--h', h + 'px');
             book.style.setProperty('--w', w + 'px');
-            book.setAttribute('aria-label', `Apri dettagli: ${title} (${count} note)`);
+            book.setAttribute('aria-label', `Apri opzioni: ${title} (${count} note)`);
             book.title = title;
 
             const spine = document.createElement('div');
@@ -561,29 +630,24 @@
             spine.appendChild(t);
             book.appendChild(spine);
 
-            // tooltip custom (per titoli lunghi)
             const tip = document.createElement('div');
             tip.className = 'book-tooltip';
             tip.textContent = title;
             book.appendChild(tip);
 
-            // stick note con count
             const note = document.createElement('div');
             note.className = 'stick-note';
             note.textContent = String(count);
             book.appendChild(note);
 
-            // click -> dettagli
-            book.addEventListener('click', () => openDetailsFor(doi));
+            book.addEventListener('click', () => openBookModal({ doi, entry, title, notesAll: allNotes, notesVisible: visible }));
 
-            // dopo inserimento, adatta font
             requestAnimationFrame(() => adjustSpineFont(t, title, h));
 
             shelfEl.appendChild(book);
             countInRow++;
           }
 
-          // Se nessun risultato dopo i filtri
           if (!bookcase.children.length) {
             const empty = document.createElement('div');
             empty.textContent = 'Nessun articolo corrisponde ai filtri.';
@@ -597,28 +661,23 @@
         }
 
         function matchesFilters(entry, note) {
-          // title filter
           if (filters.title) {
             const title = (getTitle(entry) || '').toLowerCase();
             if (!title.includes(filters.title)) return false;
           }
-          // type filter
           if (filters.types.size) {
             if (!note.type || !filters.types.has(note.type)) return false;
           }
-          // tags filter
           if (filters.tags.size) {
             const tags = Array.isArray(note.tags) ? note.tags : (note.tags ? [String(note.tags)] : []);
             const hit = tags.some(t => filters.tags.has(t));
             if (!hit) return false;
           }
-          // animals filter
           if (filters.animals.size) {
             const animals = Array.isArray(note.animals) ? note.animals : (note.animals ? [String(note.animals)] : []);
             const hit = animals.some(a => filters.animals.has(a));
             if (!hit) return false;
           }
-          // methods filter at article-level
           if (filters.methods.size) {
             const mm = entry?.dettagli?.methods;
             const methods = Array.isArray(mm) ? mm : (mm ? [String(mm)] : []);
@@ -628,34 +687,215 @@
           return true;
         }
 
-        // Manteniamo navigazione originale ai dettagli
+        // ===== Modale =====
+        function openBookModal(payload){
+          const { doi, entry, title, notesAll, notesVisible } = payload || {};
+          if (!doi) return;
+
+          modalTitle.textContent = title;
+          adjustModalTitleFont(modalTitle, title);
+
+          modalBtnDetails.onclick = (e)=>{ e.stopPropagation(); window.location.href = `details.html?doi=${encodeURIComponent(doi)}`; };
+          modalBtnNotes.onclick = (e)=>{ e.stopPropagation(); window.location.href = `notes.html?doi=${encodeURIComponent(doi)}`; };
+          const chosen = (notesAll || []).slice().sort((a,b)=>{
+            const ta = a && a.createdAt ? new Date(a.createdAt).getTime() : 0;
+            const tb = b && b.createdAt ? new Date(b.createdAt).getTime() : 0;
+            return tb - ta;
+          })[0];
+          modalBtnEdit.onclick = (e)=>{
+            e.stopPropagation();
+            if (chosen && chosen.id) {
+              editNote(doi, chosen.id);
+            } else {
+              window.location.href = `notes.html?doi=${encodeURIComponent(doi)}`;
+            }
+          };
+
+          renderAllNotesInModal(doi, entry, notesVisible);
+
+          showModal();
+        }
+
+        function renderAllNotesInModal(doi, entry, notes){
+          modalBody.innerHTML = '';
+          if (!Array.isArray(notes) || !notes.length){
+            const empty = document.createElement('div');
+            empty.textContent = 'Nessuna nota visibile per i filtri correnti.';
+            empty.style.color = '#6b7280';
+            empty.style.fontSize = '14px';
+            modalBody.appendChild(empty);
+            return;
+          }
+          for (const n of notes){
+            modalBody.appendChild(buildNoteCard(entry, n, doi, /*includeActions*/ false));
+          }
+        }
+
+        function showModal(){
+          document.body.classList.add('modal-open');
+          modalBackdrop.classList.add('show');
+          bookModal.classList.add('show');
+          modalBackdrop.setAttribute('aria-hidden', 'false');
+          bookModal.setAttribute('aria-hidden', 'false');
+        }
+        function closeModal(){
+          document.body.classList.remove('modal-open');
+          modalBackdrop.classList.remove('show');
+          bookModal.classList.remove('show');
+          modalBackdrop.setAttribute('aria-hidden', 'true');
+          bookModal.setAttribute('aria-hidden', 'true');
+        }
+
+        modalBackdrop.addEventListener('click', closeModal);
+        modalClose.addEventListener('click', (e)=>{ e.stopPropagation(); closeModal(); });
+        document.addEventListener('keydown', (e)=>{ if (e.key === 'Escape') closeModal(); });
+
+        // ===== Card delle note (layout originale) =====
+        function buildNoteCard(entry, note, doi, includeActions){
+          const card = document.createElement('article');
+          card.className = 'note-card';
+          const accent = getTypeColor(note.type);
+          card.style.setProperty('--accent', accent);
+          const impBg = importanceToBg(note && note.importanza != null ? note.importanza : 1);
+          card.style.background = impBg;
+
+          const header = document.createElement('div');
+          header.className = 'note-header';
+          if (note.type) {
+            const tp = document.createElement('span');
+            tp.className = 'type-pill';
+            tp.textContent = note.type;
+            header.appendChild(tp);
+          }
+          card.appendChild(header);
+
+          const sub = document.createElement('div');
+          sub.className = 'note-sub';
+          sub.textContent = 'DOI: ' + doi + (note.createdAt ? ' • ' + new Date(note.createdAt).toLocaleString() : '');
+          card.appendChild(sub);
+
+          if (note.imageUrl) {
+            const wrap = document.createElement('div');
+            wrap.className = 'image-wrap';
+            const a = document.createElement('a');
+            a.href = note.imageUrl; a.target = '_blank'; a.rel = 'noopener noreferrer';
+            const img = document.createElement('img');
+            img.className = 'image-preview';
+            img.alt = getTitle(entry) || 'image';
+            img.src = note.imageUrl;
+            img.addEventListener('error', () => { try { wrap.remove(); } catch (_) {} });
+            a.appendChild(img);
+            wrap.appendChild(a);
+            card.appendChild(wrap);
+          }
+
+          if (note.text) {
+            const formatted = formatNoteText(note.text);
+            if (formatted) {
+              const p = document.createElement('p');
+              p.textContent = formatted;
+              p.style.margin = '4px 0';
+              p.style.whiteSpace = 'pre-wrap';
+              p.style.paddingLeft = '12px';
+              card.appendChild(p);
+            }
+          }
+
+          if (note.comment) {
+            const c = document.createElement('div');
+            c.className = 'note-sub';
+            c.textContent = 'Commento: ' + note.comment;
+            card.appendChild(c);
+          }
+
+          const tags = Array.isArray(note.tags) ? note.tags : (note.tags ? [String(note.tags)] : []);
+          if (tags.length) {
+            const chips = document.createElement('div');
+            chips.className = 'chips';
+            for (const t of tags) {
+              const c = document.createElement('span');
+              c.className = 'chip tag';
+              c.textContent = t;
+              chips.appendChild(c);
+            }
+            card.appendChild(chips);
+          }
+
+          const animals = Array.isArray(note.animals) ? note.animals : (note.animals ? [String(note.animals)] : []);
+          if (animals.length) {
+            const chips = document.createElement('div');
+            chips.className = 'chips';
+            for (const a of animals) {
+              const c = document.createElement('span');
+              c.className = 'chip animal';
+              c.textContent = a;
+              chips.appendChild(c);
+            }
+            card.appendChild(chips);
+          }
+
+          if (includeActions) {
+            const actions = document.createElement('div');
+            actions.className = 'card-actions';
+            const left = document.createElement('div');
+            left.className = 'action-left';
+            const right = document.createElement('div');
+            right.className = 'action-right';
+
+            if (note.url) {
+              const linkBtn = document.createElement('button');
+              linkBtn.className = 'btn btn-link';
+              linkBtn.textContent = 'Link';
+              linkBtn.addEventListener('click', () => { try { window.open(note.url, '_blank', 'noopener'); } catch (_) {} });
+              left.appendChild(linkBtn);
+            }
+            if (note.imageUrl) {
+              const imgBtn = document.createElement('button');
+              imgBtn.className = 'btn btn-link';
+              imgBtn.textContent = 'Immagine';
+              imgBtn.addEventListener('click', () => { try { window.open(note.imageUrl, '_blank', 'noopener'); } catch (_) {} });
+              left.appendChild(imgBtn);
+            }
+
+            const editBtn = document.createElement('button');
+            editBtn.className = 'btn';
+            editBtn.textContent = 'Modifica';
+            editBtn.addEventListener('click', () => editNote(doi, note.id));
+            right.appendChild(editBtn);
+
+            actions.appendChild(left);
+            actions.appendChild(right);
+            card.appendChild(actions);
+          }
+
+          return card;
+        }
+
+        // ===== Helpers font =====
+        function adjustSpineFont(el, text, heightPx){
+          const len = Math.max(1, (text || '').length);
+          const target = Math.max(20, Math.min(40, Math.floor(heightPx / 3)));
+          let size = Math.max(9, Math.min(14, Math.floor((target / len) * 120)));
+          if (heightPx < 120) size = Math.max(8, Math.min(size, 12));
+          el.style.fontSize = size + 'px';
+        }
+        function adjustModalTitleFont(el, text){
+          const len = Math.max(1, (text || '').length);
+          const size = Math.max(14, Math.min(28, Math.floor(600 / len)));
+          el.style.fontSize = size + 'px';
+        }
+
         async function openDetailsFor(doi) {
           if (!doi) return;
           window.location.href = `details.html?doi=${encodeURIComponent(doi)}`;
         }
 
-        // Conservata per compat: usata altrove
         async function editNote(doi, noteId) {
           window.location.href = `notes.html?doi=${encodeURIComponent(doi)}&id=${encodeURIComponent(noteId)}`;
         }
 
-        /* ===== helper: sizing titolo sul dorso ===== */
-        function adjustSpineFont(el, text, heightPx){
-          // Stima: più lungo il testo, più piccolo il font.
-          // Bilanciamento empirico: target 12-38 “caratteri-equivalenti” lungo l’asse verticale.
-          const len = Math.max(1, (text || '').length);
-          const target = Math.max(20, Math.min(40, Math.floor(heightPx / 3))); // “cap” verticali
-          // base 9..14 px
-          let size = Math.max(9, Math.min(14, Math.floor((target / len) * 120)));
-          // clamp extra per dorsi bassi
-          if (heightPx < 120) size = Math.max(8, Math.min(size, 12));
-          el.style.fontSize = size + 'px';
-        }
-
-        // Avvio
         loadAll();
 
-        // Reflow font al resize
         window.addEventListener('resize', () => {
           const titles = document.querySelectorAll('.spine .title');
           titles.forEach(t => {
