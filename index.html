@@ -873,15 +873,41 @@
 
         // ===== Helpers font =====
         function adjustSpineFont(el, text, heightPx){
+          const parent = el?.parentElement;
+          const containerH = Math.max(0, heightPx || (parent ? parent.clientHeight : 0));
           const len = Math.max(1, (text || '').length);
-          const target = Math.max(20, Math.min(40, Math.floor(heightPx / 3)));
-          let size = Math.max(9, Math.min(14, Math.floor((target / len) * 120)));
-          if (heightPx < 120) size = Math.max(8, Math.min(size, 12));
+          // Start with an initial estimate that roughly fits all chars
+          const initial = Math.floor(containerH / (len * 1.05));
+          let size = Math.max(7, Math.min(14, initial));
+
+          // Reset spacing to default before measuring
+          el.style.letterSpacing = '';
           el.style.fontSize = size + 'px';
+
+          // Iteratively shrink until it fits the spine height
+          const maxLoops = 40;
+          let loops = 0;
+          const targetH = parent ? parent.clientHeight : containerH;
+          while (loops < maxLoops && el.scrollHeight > targetH && size > 6) {
+            size -= 0.5;
+            el.style.fontSize = size + 'px';
+            loops++;
+          }
+
+          // If still overflowing at small sizes, progressively reduce letter-spacing
+          if (el.scrollHeight > targetH) {
+            let ls = 1.1; // matches CSS default
+            while (loops < maxLoops && el.scrollHeight > targetH && ls > 0) {
+              ls = Math.max(0, +(ls - 0.2).toFixed(2));
+              el.style.letterSpacing = ls + 'px';
+              loops++;
+            }
+          }
         }
         function adjustModalTitleFont(el, text){
           const len = Math.max(1, (text || '').length);
-          const size = Math.max(14, Math.min(28, Math.floor(600 / len)));
+          // Aim to keep titles readable but avoid overflow for long strings
+          let size = Math.max(14, Math.min(28, Math.floor(680 / len)));
           el.style.fontSize = size + 'px';
         }
 
