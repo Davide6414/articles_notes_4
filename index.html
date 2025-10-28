@@ -21,11 +21,6 @@
         --muted: #64748b;
         --chip-bg: #ecfeff;
         --chip-border: #cffafe;
-
-        /* Libreria */
-        --book-shadow: rgba(0,0,0,.15);
-        --shelf-wood-1: #d8c0a8;
-        --shelf-wood-2: #c1a186;
       }
 
       body {
@@ -50,9 +45,73 @@
       .btn.primary { background: var(--brand); color: #fff; border-color: var(--brand); }
       .btn.primary:hover { filter: brightness(0.98); }
 
-      .header { margin-bottom: 1rem; }
+      .header {
+        margin-bottom: 1rem;
+      }
 
-      /* Filters (immutati) */
+      /* Notes grid + cards */
+      .notes-section { margin-top: 20px; }
+      .section-header { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 10px 12px; border: 1px solid var(--border-color); border-radius: 14px; background: linear-gradient(180deg, #f0fdf4, #ecfeff); }
+      .section-title { margin: 0; font-size: 18px; }
+      .section-title.clickable { cursor: pointer; }
+      .section-title.clickable:hover { text-decoration: underline; }
+      /* Collapsed as desktop-like tile */
+      .notes-section.collapsed { display: inline-block; vertical-align: top; width: 180px; margin-right: 12px; }
+      .section-header.collapsed-tile { position: relative; display: grid; justify-items: center; gap: 8px; padding: 14px; background: linear-gradient(180deg, #ecfeff, #dcfce7); }
+      .section-header.collapsed-tile .collapse-btn { position: absolute; top: 6px; right: 6px; }
+      .article-icon { width: 72px; height: 72px; border-radius: 16px; background: #d1fae5; border: 1px solid #bbf7d0; display: grid; place-items: center; font-size: 36px; }
+      .article-caption { text-align: center; font-size: 13px; line-height: 1.2; max-width: 160px; }
+      .collapse-btn { font-size: 12px; padding: 6px 10px; border-radius: 10px; border: 1px solid var(--border-color); background: var(--surface); cursor: pointer; }
+      .collapse-btn:hover { background: #f1f5f9; }
+      .notes-grid {
+        display: grid;
+        /* Colonne di larghezza fissa; non allargare le card */
+        grid-template-columns: repeat(auto-fill, minmax(320px, 320px));
+        gap: 16px;
+        margin-top: 12px;
+        justify-content: start; /* allinea le colonne a sinistra, lascia spazio vuoto a destra */
+      }
+
+      .note-card {
+        --accent: var(--brand-2);
+        border: 1px solid var(--border-color);
+        border-left: 6px solid var(--accent);
+        border-radius: 14px;
+        padding: 12px;
+        background: var(--surface);
+        display: grid;
+        gap: 8px;
+        box-shadow: 0 2px 8px rgba(2, 132, 199, 0.06);
+      }
+
+      .note-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
+      .note-title { margin: 0; font-size: 16px; }
+      .note-sub { color: var(--muted); font-size: 12px; }
+
+      .type-pill {
+        font-size: 12px;
+        padding: 2px 8px;
+        border-radius: 9999px;
+        background: var(--brand-3);
+        color: #065f46;
+        border: 1px solid rgba(0,0,0,0.06);
+        white-space: nowrap;
+      }
+
+      .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+      .chip { font-size: 12px; padding: 4px 10px; border-radius: 9999px; border: 1px solid var(--border-color); background: #f8fafc; }
+      .chip.tag { background: var(--chip-bg); border-color: var(--chip-border); }
+      .chip.animal { background: #fefce8; border-color: #fde68a; }
+
+      .image-wrap { border-radius: 10px; overflow: hidden; border: 1px solid #e5e7eb; }
+      .image-preview { width: 100%; max-height: 220px; object-fit: cover; display: block; }
+
+      .card-actions { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-top: 4px; }
+      .action-left, .action-right { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+
+      .btn-link { background: #e0f2fe; border-color: #bae6fd; }
+
+      /* Filters */
       .filters { margin-top: 16px; padding: 12px; border: 1px solid #e5e7eb; border-radius: 12px; background: #fafafa; }
       .filters h2 { margin: 0; font-size: 16px; }
       .filters-header { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
@@ -70,111 +129,16 @@
       .filters-chips { display: flex; flex-wrap: wrap; gap: 6px; }
       .chip.rem { cursor: pointer; }
 
-      /* ====== Libreria 3D (sostituisce la griglia delle card) ====== */
-      #notesSection { margin-top: 16px; }
-      .bookcase {
-        position: relative;
-        border: 1px solid var(--border-color);
-        border-radius: 14px;
-        background:
-          linear-gradient(180deg, rgba(255,255,255,0.8), rgba(255,255,255,0.95)),
-          repeating-linear-gradient(90deg, #ffffff 0 32px, #fafafa 32px 64px);
-        padding: 18px 16px;
-      }
-      .shelf {
-        position: relative;
-        display: flex;
-        flex-wrap: wrap;
-        gap: 10px;
-        align-items: flex-end;
-        padding: 18px 8px 26px 8px; /* spazio per bordo ripiano */
-        border-radius: 10px;
-        margin-bottom: 10px;
-      }
-      .shelf::after {
-        content: "";
-        position: absolute;
-        left: 6px; right: 6px; bottom: 6px; height: 14px;
-        border-radius: 8px;
-        background:
-          linear-gradient(180deg, var(--shelf-wood-1), var(--shelf-wood-2));
-        box-shadow: 0 6px 14px rgba(0,0,0,0.08) inset, 0 2px 10px rgba(0,0,0,0.12);
-      }
-
-      .book {
-        --h: 140px;     /* altezza dorso */
-        --w: 28px;      /* spessore */
-        --cover: #bbe7ff;
-        position: relative;
-        width: var(--w);
-        height: var(--h);
-        transform-style: preserve-3d;
-        filter: drop-shadow(0 5px 8px var(--book-shadow));
-        cursor: pointer;
-        border-radius: 6px;
-      }
-      .book:focus { outline: 2px solid #94a3b8; outline-offset: 2px; }
-      .book:hover { transform: translateY(-2px) rotateZ(-.4deg); }
-
-      .spine {
-        position: absolute; inset: 0;
-        border-radius: 6px;
-        background:
-          linear-gradient(180deg, rgba(255,255,255,.25), transparent 60%),
-          linear-gradient(90deg, rgba(0,0,0,.25), transparent 20%, rgba(255,255,255,.3) 45%, transparent 60%, rgba(0,0,0,.25) 85%),
-          var(--cover);
-        display: flex; align-items: center; justify-content: center;
-        padding: 6px;
-        box-shadow: inset 0 1px 0 rgba(255,255,255,.4), inset 0 -1px 0 rgba(0,0,0,.25);
-      }
-      .spine .title {
-        writing-mode: vertical-rl;
-        transform: rotate(180deg);
-        font-weight: 700;
-        letter-spacing: 1.1px;
-        text-transform: uppercase;
-        color: #0f172a;
-        line-height: 1;
-        max-height: 100%;
-        overflow: hidden;
-        word-break: break-word;
-        text-shadow: 0 1px 0 rgba(255,255,255,.6);
-        /* dimensione gestita via JS */
-      }
-      .book::before{
-        content:""; position:absolute; right:-4px; top:2px; bottom:2px; width:4px; border-radius:2px;
-        background: repeating-linear-gradient(180deg, #f3f4f6 0 2px, #e5e7eb 2px 4px);
-        box-shadow: inset 0 0 1px rgba(0,0,0,.25);
-      }
-
-      .stick-note{
-        position:absolute; top:4px; right:-10px;
-        background:#facc15; color:#1e1e1e; font-size:11px; font-weight:800;
-        padding:2px 5px; border-radius:3px; transform:rotate(8deg);
-        border:1px solid rgba(0,0,0,.2); box-shadow:0 2px 6px rgba(0,0,0,.18);
-      }
-
-      .book-tooltip{
-        position:absolute; left:50%; bottom:calc(100% + 10px);
-        transform: translateX(-50%) translateY(8px);
-        background: #0b0d12; color:#e5e7eb;
-        border:1px solid rgba(255,255,255,.08);
-        padding:6px 8px; border-radius:8px; font-size:12px; font-weight:600;
-        white-space:nowrap; opacity:0; pointer-events:none; transition: all .18s ease;
-        box-shadow: 0 8px 24px rgba(0,0,0,.18);
-      }
-      .book-tooltip::after{
-        content:""; position:absolute; left:50%; top:100%;
-        transform: translateX(-50%);
-        border:6px solid transparent; border-top-color:#0b0d12;
-      }
-      .book:hover .book-tooltip{ opacity:1; transform: translateX(-50%) translateY(0); }
-
-      /* Mobile */
+      /* Mobile tweaks */
       @media (max-width: 640px) {
         body { margin: 1rem; }
-        .book { --h: 120px; --w: 24px; }
+        .notes-section.collapsed { width: 140px; }
+        .notes-grid { grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); }
+        .section-header { padding: 10px; }
+        .note-card { padding: 10px; }
       }
+
+      /* Details shown only in popup via details-popup.html */
     </style>
   </head>
   <body>
@@ -238,6 +202,8 @@
       <div id="notesContainer"></div>
     </section>
 
+    <!-- Popup disabilitato: gestione via pagine dedicate -->
+
     <script>
       (function () {
         const notesContainer = document.getElementById('notesContainer');
@@ -257,11 +223,11 @@
 
         let db = {};
         const TYPE_COLOR_KEY = 'typeColors.v1';
+        const COLLAPSE_KEY = 'notesCollapsed.v1';
         const FILTERS_COLLAPSE_KEY = 'filtersCollapsed.v1';
         let facets = { types: [], tags: [], animals: [], methods: [] };
         let filters = { title: '', types: new Set(), tags: new Set(), animals: new Set(), methods: new Set() };
 
-        /* ===== util originali (immutati/riusati) ===== */
         function loadTypeColors() {
           try { return JSON.parse(localStorage.getItem(TYPE_COLOR_KEY) || '{}') || {}; } catch (_) { return {}; }
         }
@@ -302,15 +268,25 @@
           const normalized = String(raw).replace(/\r\n/g, '\n');
           const trimmed = normalized.trim();
           if (!trimmed) return '';
+
           const startsWithBullet = /^-\s*/.test(trimmed);
           const hasLineBullets = /\n\s*-\s*/.test(trimmed);
           if (startsWithBullet || hasLineBullets) {
             const parts = trimmed.split(/\s*-\s+/).map(part => part.trim()).filter(Boolean);
-            if (parts.length > 1) return parts.map(part => `- ${part}`).join('\n');
+            if (parts.length > 1) {
+              return parts.map(part => `- ${part}`).join('\n');
+            }
           }
+
           return trimmed;
         }
 
+        function loadCollapsed() {
+          try { return JSON.parse(localStorage.getItem(COLLAPSE_KEY) || '{}') || {}; } catch (_) { return {}; }
+        }
+        function saveCollapsed(map) {
+          try { localStorage.setItem(COLLAPSE_KEY, JSON.stringify(map)); } catch (_) {}
+        }
         function loadFiltersCollapsed() {
           try { return localStorage.getItem(FILTERS_COLLAPSE_KEY) === '1'; } catch (_) { return false; }
         }
@@ -318,6 +294,7 @@
           try { localStorage.setItem(FILTERS_COLLAPSE_KEY, v ? '1' : '0'); } catch (_) {}
         }
 
+        // Gestione filtri e rendering
         function getTitle(entry) {
           if (!entry) return '';
           const t = entry.title;
@@ -331,23 +308,42 @@
           const parts = [];
           const push = (v) => { if (v != null && String(v).trim()) parts.push(String(v)); };
           // General
-          push(d.ecosistema); push(d.background); push(d.main_objective); push(d.sub_objective); push(d.biological_organization);
+          push(d.ecosistema);
+          push(d.background);
+          push(d.main_objective);
+          push(d.sub_objective);
+          push(d.biological_organization);
           // Temporal
-          if (d.temporal_scale) { push(d.temporal_scale.start); push(d.temporal_scale.end); push(d.temporal_scale.resolution); }
+          if (d.temporal_scale) {
+            push(d.temporal_scale.start);
+            push(d.temporal_scale.end);
+            push(d.temporal_scale.resolution);
+          }
           // Spatial
-          if (d.spatial_scale) { push(d.spatial_scale.place); push(d.spatial_scale.lat); push(d.spatial_scale.long); push(d.spatial_scale.description); }
-          // Methods
-          const mm = d.methods;
-          (Array.isArray(mm) ? mm : (mm ? [String(mm)] : [])).forEach(push);
+          if (d.spatial_scale) {
+            push(d.spatial_scale.place);
+            push(d.spatial_scale.lat);
+            push(d.spatial_scale.long);
+            push(d.spatial_scale.description);
+          }
+          // Methods (array)
+          if (Array.isArray(d.methods)) d.methods.forEach(push); else push(d.methods);
           // Variables
-          if (Array.isArray(d.variables)) d.variables.forEach(v => { if (!v) return; push(v.dependent); push(v.independent); push(v.note); });
-          // Outputs + Comments
+          if (Array.isArray(d.variables)) {
+            d.variables.forEach(v => { if (!v) return; push(v.dependent); push(v.independent); push(v.note); });
+          }
+          // Outputs
           push(d.main_outputs);
-          if (d.commenti) { push(d.commenti.difetti); push(d.commenti.pregi); push(d.commenti.spunti); push(d.commenti.idee_future); }
+          // Comments
+          if (d.commenti) {
+            push(d.commenti.difetti);
+            push(d.commenti.pregi);
+            push(d.commenti.spunti);
+            push(d.commenti.idee_future);
+          }
           return parts.join(' ').toLowerCase();
         }
 
-        /* ===== caricamento e facets ===== */
         async function loadAll() {
           const tid = (window.Toast && Toast.loading) ? Toast.loading('Caricamento dati...') : null;
           try {
@@ -360,7 +356,7 @@
           }
           computeFacets();
           renderFilters();
-          renderNotes();      // ora renderizza libreria
+          renderNotes();
         }
 
         function computeFacets() {
@@ -381,15 +377,9 @@
             const mm = entry?.dettagli?.methods;
             (Array.isArray(mm) ? mm : (mm ? [String(mm)] : [])).forEach(m => methods.add(String(m)));
           }
-          facets = {
-            types: Array.from(types).sort((a,b)=>a.localeCompare(b, undefined, {sensitivity:'base'})),
-            tags: Array.from(tags).sort((a,b)=>a.localeCompare(b, undefined, {sensitivity:'base'})),
-            animals: Array.from(animals).sort((a,b)=>a.localeCompare(b, undefined, {sensitivity:'base'})),
-            methods: Array.from(methods).sort((a,b)=>a.localeCompare(b, undefined, {sensitivity:'base'}))
-          };
+          facets = { types: Array.from(types).sort((a,b)=>a.localeCompare(b, undefined, {sensitivity:'base'})), tags: Array.from(tags).sort((a,b)=>a.localeCompare(b, undefined, {sensitivity:'base'})), animals: Array.from(animals).sort((a,b)=>a.localeCompare(b, undefined, {sensitivity:'base'})), methods: Array.from(methods).sort((a,b)=>a.localeCompare(b, undefined, {sensitivity:'base'})) };
         }
 
-        /* ===== filtri (immutati) ===== */
         function renderFilters() {
           // Title input
           filterTitleEl.value = filters.title;
@@ -410,6 +400,7 @@
             filters.tags = new Set(Array.from(tagsMulti.selectedOptions).map(o=>o.value));
             filters.methods = new Set(Array.from(methodsMulti.selectedOptions).map(o=>o.value));
             filters.animals = new Set(Array.from(animalsMulti.selectedOptions).map(o=>o.value));
+            // non chiudere forzatamente; lasciare aperto se l'utente vuole continuare
             renderNotes();
             renderFilters();
           };
@@ -463,10 +454,166 @@
           renderSelectedChips();
         }
 
-        /* ===== nuova rappresentazione: libreria ===== */
+        function createCard(doi, entry, note) {
+          const card = document.createElement('article');
+          card.className = 'note-card';
+          const accent = getTypeColor(note.type);
+          card.style.setProperty('--accent', accent);
+          // Background based on importanza 1..10 (pale yellow -> intense red)
+          const impBg = importanceToBg(note && note.importanza != null ? note.importanza : 1);
+          card.style.background = impBg;
+
+          const header = document.createElement('div');
+          header.className = 'note-header';
+          if (note.type) {
+            const tp = document.createElement('span');
+            tp.className = 'type-pill';
+            tp.textContent = note.type;
+            header.appendChild(tp);
+          }
+          card.appendChild(header);
+
+          const sub = document.createElement('div');
+          sub.className = 'note-sub';
+          sub.textContent = 'DOI: ' + doi + (note.createdAt ? ' • ' + new Date(note.createdAt).toLocaleString() : '');
+          card.appendChild(sub);
+
+          // Image preview if present
+          if (note.imageUrl) {
+            const wrap = document.createElement('div');
+            wrap.className = 'image-wrap';
+            const a = document.createElement('a');
+            a.href = note.imageUrl; a.target = '_blank'; a.rel = 'noopener noreferrer';
+            const img = document.createElement('img');
+            img.className = 'image-preview';
+            img.alt = getTitle(entry) || 'image';
+            img.src = note.imageUrl;
+            img.addEventListener('error', () => {
+              try { wrap.remove(); } catch (_) {}
+            });
+            a.appendChild(img);
+            wrap.appendChild(a);
+            card.appendChild(wrap);
+          }
+
+          if (note.text) {
+            const formatted = formatNoteText(note.text);
+            if (formatted) {
+              const p = document.createElement('p');
+              p.textContent = formatted;
+              p.style.margin = '4px 0';
+              p.style.whiteSpace = 'pre-wrap';
+              p.style.paddingLeft = '12px';
+              card.appendChild(p);
+            }
+          }
+
+          if (note.comment) {
+            const c = document.createElement('div');
+            c.className = 'note-sub';
+            c.textContent = 'Commento: ' + note.comment;
+            card.appendChild(c);
+          }
+
+          // Chips: tags
+          const tags = Array.isArray(note.tags) ? note.tags : (note.tags ? [String(note.tags)] : []);
+          if (tags.length) {
+            const chips = document.createElement('div');
+            chips.className = 'chips';
+            for (const t of tags) {
+              const c = document.createElement('span');
+              c.className = 'chip tag';
+              c.textContent = t;
+              chips.appendChild(c);
+            }
+            card.appendChild(chips);
+          }
+
+          // Chips: animals
+          const animals = Array.isArray(note.animals) ? note.animals : (note.animals ? [String(note.animals)] : []);
+          if (animals.length) {
+            const chips = document.createElement('div');
+            chips.className = 'chips';
+            for (const a of animals) {
+              const c = document.createElement('span');
+              c.className = 'chip animal';
+              c.textContent = a;
+              chips.appendChild(c);
+            }
+            card.appendChild(chips);
+          }
+
+          const actions = document.createElement('div');
+          actions.className = 'card-actions';
+          const left = document.createElement('div');
+          left.className = 'action-left';
+          const right = document.createElement('div');
+          right.className = 'action-right';
+
+          if (note.url) {
+            const linkBtn = document.createElement('button');
+            linkBtn.className = 'btn btn-link';
+            linkBtn.textContent = 'Link';
+            linkBtn.addEventListener('click', () => { try { window.open(note.url, '_blank', 'noopener'); } catch (_) {} });
+            left.appendChild(linkBtn);
+          }
+          if (note.imageUrl) {
+            const imgBtn = document.createElement('button');
+            imgBtn.className = 'btn btn-link';
+            imgBtn.textContent = 'Immagine';
+            imgBtn.addEventListener('click', () => { try { window.open(note.imageUrl, '_blank', 'noopener'); } catch (_) {} });
+            left.appendChild(imgBtn);
+          }
+
+          const editBtn = document.createElement('button');
+          editBtn.className = 'btn';
+          editBtn.textContent = 'Modifica';
+          editBtn.addEventListener('click', () => editNote(doi, note.id));
+          right.appendChild(editBtn);
+
+          actions.appendChild(left);
+          actions.appendChild(right);
+          card.appendChild(actions);
+
+          return card;
+        }
+
+        function matchesFilters(entry, note) {
+          // title filter
+          if (filters.title) {
+            const title = (getTitle(entry) || '').toLowerCase();
+            if (!title.includes(filters.title)) return false;
+          }
+          // type filter (OR tra selezioni)
+          if (filters.types.size) {
+            if (!note.type || !filters.types.has(note.type)) return false;
+          }
+          // tags filter (OR tra selezioni)
+          if (filters.tags.size) {
+            const tags = Array.isArray(note.tags) ? note.tags : (note.tags ? [String(note.tags)] : []);
+            const hit = tags.some(t => filters.tags.has(t));
+            if (!hit) return false;
+          }
+          // animals filter (OR tra selezioni) per nota
+          if (filters.animals.size) {
+            const animals = Array.isArray(note.animals) ? note.animals : (note.animals ? [String(note.animals)] : []);
+            const hit = animals.some(a => filters.animals.has(a));
+            if (!hit) return false;
+          }
+          // methods filter (OR tra selezioni) at article-level
+          if (filters.methods.size) {
+            const mm = entry?.dettagli?.methods;
+            const methods = Array.isArray(mm) ? mm : (mm ? [String(mm)] : []);
+            const hit = methods.some(m => filters.methods.has(m));
+            if (!hit) return false;
+          }
+          return true;
+        }
+
+        // Details visualization is handled in details-popup.html, opened on title click
+
         function renderNotes() {
           notesContainer.innerHTML = '';
-
           const dois = Object.keys(db);
           if (!dois.length) {
             const empty = document.createElement('div');
@@ -477,7 +624,7 @@
             return;
           }
 
-          // Precalcola mappa colori per tutti i type presenti (riusato)
+          // Precalcola mappa colori per tutti i type presenti
           try {
             const types = new Set();
             for (const doi of dois) {
@@ -493,178 +640,148 @@
             if (changed) saveTypeColors(map);
           } catch (_) {}
 
-          // Ordina per titolo
+          // Ordina le sezioni per titolo (fallback DOI)
           const sections = dois.map(doi => {
             const entry = db[doi] || {};
             const title = getTitle(entry) || doi;
             return { doi, entry, title };
           }).sort((a, b) => a.title.localeCompare(b.title, undefined, { sensitivity: 'base' }));
 
-          // Contenitore libreria con più ripiani (righe auto)
-          const bookcase = document.createElement('div');
-          bookcase.className = 'bookcase';
-
-          // Parametro: libri per ripiano (responsive semplice)
-          const perShelf = window.innerWidth < 700 ? 10 : 16;
-          let shelfEl = null, countInRow = 0;
-
-          const query = (filters.title || '').toLowerCase();
+          const collapsedMap = loadCollapsed();
 
           for (const { doi, entry, title } of sections) {
-            const textOk = !query || title.toLowerCase().includes(query) || detailsText(entry).includes(query);
-            if (!textOk) continue;
+            // Filtro testuale: match su titolo o dettagli
+            const query = (filters.title || '').toLowerCase();
+            const matchesText = !query || title.toLowerCase().includes(query) || detailsText(entry).includes(query);
+            if (!matchesText) continue;
 
-            const allNotes = Array.isArray(entry.user_notes) ? entry.user_notes : (entry.user_note ? [entry.user_note] : []);
-            // sort by date desc
-            allNotes.sort((a, b) => {
+            const notes = Array.isArray(entry.user_notes) ? entry.user_notes : (entry.user_note ? [entry.user_note] : []);
+            // Ordina note per data (desc), se disponibile
+            notes.sort((a, b) => {
               const ta = a && a.createdAt ? new Date(a.createdAt).getTime() : 0;
               const tb = b && b.createdAt ? new Date(b.createdAt).getTime() : 0;
               return tb - ta;
             });
 
-            // filtra per i filtri attivi
-            const visible = allNotes.filter(n => matchesFilters(entry, n));
+            const visible = notes.filter(n => matchesFilters(entry, n));
             const count = visible.length;
 
-            // Se filtri avanzati attivi e count==0, nascondi come prima
+            // Decide if this section should be shown
             const advancedActive = (filters.types.size || filters.tags.size || filters.animals.size || filters.methods.size);
             if (advancedActive && count === 0) continue;
 
-            // colore dorso: dal primo type visibile, fallback pastel
-            const firstType = (visible[0] && visible[0].type) || (allNotes[0] && allNotes[0].type) || null;
-            const cover = getTypeColor(firstType);
+            const section = document.createElement('section');
+            section.className = 'notes-section';
 
-            if (!shelfEl || countInRow >= perShelf) {
-              shelfEl = document.createElement('div');
-              shelfEl.className = 'shelf';
-              bookcase.appendChild(shelfEl);
-              countInRow = 0;
+            const header = document.createElement('div');
+            header.className = 'section-header';
+            const h = document.createElement('h2');
+            h.className = 'section-title clickable';
+            h.setAttribute('tabindex', '0');
+            h.addEventListener('click', () => openDetailsFor(doi));
+            h.addEventListener('keydown', (ev) => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); openDetailsFor(doi); } });
+            const btn = document.createElement('button');
+            btn.className = 'collapse-btn';
+            const collapsed = !!collapsedMap[doi];
+            btn.setAttribute('aria-expanded', String(!collapsed));
+            btn.textContent = collapsed ? '▸' : '▾';
+            header.appendChild(btn);
+            // Add icon + caption for collapsed view
+            const icon = document.createElement('div'); icon.className = 'article-icon'; icon.textContent = '📄';
+            const caption = document.createElement('div'); caption.className = 'article-caption';
+            // Short caption without count
+            caption.textContent = title;
+            // Populate header based on state later
+            function applyHeaderLayout() {
+              header.innerHTML = '';
+              header.appendChild(btn);
+              if (section.classList.contains('collapsed')) {
+                header.classList.add('collapsed-tile');
+                header.appendChild(icon);
+                header.appendChild(caption);
+              } else {
+                header.classList.remove('collapsed-tile');
+                const titleEl = document.createElement('h2');
+                titleEl.className = 'section-title clickable';
+                titleEl.textContent = `${title} (${count})`;
+                titleEl.setAttribute('tabindex', '0');
+                titleEl.addEventListener('click', () => openDetailsFor(doi));
+                titleEl.addEventListener('keydown', (ev) => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); openDetailsFor(doi); } });
+                header.appendChild(titleEl);
+              }
+              // Actions (add note, variables)
+              const actions = document.createElement('div');
+              actions.style.display = 'flex';
+              actions.style.gap = '8px';
+              actions.style.marginLeft = 'auto';
+              const addNoteBtn = document.createElement('button');
+              addNoteBtn.className = 'btn';
+              addNoteBtn.textContent = 'Aggiungi nota';
+              addNoteBtn.addEventListener('click', (e) => { e.stopPropagation(); window.location.href = `notes.html?doi=${encodeURIComponent(doi)}`; });
+              const varsBtn = document.createElement('button');
+              varsBtn.className = 'btn';
+              varsBtn.textContent = 'Variabili';
+              varsBtn.addEventListener('click', (e) => { e.stopPropagation(); window.location.href = `variabili.html?doi=${encodeURIComponent(doi)}`; });
+              actions.appendChild(addNoteBtn);
+              actions.appendChild(varsBtn);
+              header.appendChild(actions);
+            }
+            if (collapsed) section.classList.add('collapsed');
+            applyHeaderLayout();
+            section.appendChild(header);
+
+            const grid = document.createElement('div');
+            grid.className = 'notes-grid';
+            if (collapsed) grid.style.display = 'none';
+
+            // Details are not rendered inline; click title to open details popup
+
+            if (count > 0) {
+              for (const note of visible) {
+                const card = createCard(doi, entry, note);
+                grid.appendChild(card);
+              }
+            } else if (!collapsed) {
+              const placeholder = document.createElement('div');
+              placeholder.textContent = 'Nessuna nota per questo articolo.';
+              placeholder.style.color = '#6b7280';
+              placeholder.style.fontSize = '14px';
+              // Usa tutta la riga
+              placeholder.style.gridColumn = '1 / -1';
+              grid.appendChild(placeholder);
             }
 
-            const book = document.createElement('button');
-            book.type = 'button';
-            book.className = 'book';
-            book.style.setProperty('--cover', cover);
-            // altezza/spessore in base al numero note (subtle scaling)
-            const h = 120 + Math.min(60, count * 4);
-            const w = 22 + Math.min(12, Math.ceil(count / 2));
-            book.style.setProperty('--h', h + 'px');
-            book.style.setProperty('--w', w + 'px');
-            book.setAttribute('aria-label', `Apri dettagli: ${title} (${count} note)`);
-            book.title = title;
+            btn.addEventListener('click', (e) => {
+              e.stopPropagation();
+              const nowCollapsed = grid.style.display !== 'none' ? true : false;
+              grid.style.display = nowCollapsed ? 'none' : '';
+              section.classList.toggle('collapsed', nowCollapsed);
+              btn.textContent = nowCollapsed ? '▸' : '▾';
+              btn.setAttribute('aria-expanded', String(!nowCollapsed));
+              collapsedMap[doi] = nowCollapsed;
+              saveCollapsed(collapsedMap);
+              applyHeaderLayout();
+            });
 
-            const spine = document.createElement('div');
-            spine.className = 'spine';
-            const t = document.createElement('div');
-            t.className = 'title';
-            t.textContent = title;
-            spine.appendChild(t);
-            book.appendChild(spine);
-
-            // tooltip custom (per titoli lunghi)
-            const tip = document.createElement('div');
-            tip.className = 'book-tooltip';
-            tip.textContent = title;
-            book.appendChild(tip);
-
-            // stick note con count
-            const note = document.createElement('div');
-            note.className = 'stick-note';
-            note.textContent = String(count);
-            book.appendChild(note);
-
-            // click -> dettagli
-            book.addEventListener('click', () => openDetailsFor(doi));
-
-            // dopo inserimento, adatta font
-            requestAnimationFrame(() => adjustSpineFont(t, title, h));
-
-            shelfEl.appendChild(book);
-            countInRow++;
+            section.appendChild(grid);
+            notesContainer.appendChild(section);
           }
-
-          // Se nessun risultato dopo i filtri
-          if (!bookcase.children.length) {
-            const empty = document.createElement('div');
-            empty.textContent = 'Nessun articolo corrisponde ai filtri.';
-            empty.style.color = '#6b7280';
-            empty.style.fontSize = '14px';
-            notesContainer.appendChild(empty);
-            return;
-          }
-
-          notesContainer.appendChild(bookcase);
         }
 
-        function matchesFilters(entry, note) {
-          // title filter
-          if (filters.title) {
-            const title = (getTitle(entry) || '').toLowerCase();
-            if (!title.includes(filters.title)) return false;
-          }
-          // type filter
-          if (filters.types.size) {
-            if (!note.type || !filters.types.has(note.type)) return false;
-          }
-          // tags filter
-          if (filters.tags.size) {
-            const tags = Array.isArray(note.tags) ? note.tags : (note.tags ? [String(note.tags)] : []);
-            const hit = tags.some(t => filters.tags.has(t));
-            if (!hit) return false;
-          }
-          // animals filter
-          if (filters.animals.size) {
-            const animals = Array.isArray(note.animals) ? note.animals : (note.animals ? [String(note.animals)] : []);
-            const hit = animals.some(a => filters.animals.has(a));
-            if (!hit) return false;
-          }
-          // methods filter at article-level
-          if (filters.methods.size) {
-            const mm = entry?.dettagli?.methods;
-            const methods = Array.isArray(mm) ? mm : (mm ? [String(mm)] : []);
-            const hit = methods.some(m => filters.methods.has(m));
-            if (!hit) return false;
-          }
-          return true;
+        async function editNote(doi, noteId) {
+          window.location.href = `notes.html?doi=${encodeURIComponent(doi)}&id=${encodeURIComponent(noteId)}`;
         }
 
-        // Manteniamo navigazione originale ai dettagli
         async function openDetailsFor(doi) {
           if (!doi) return;
           window.location.href = `details.html?doi=${encodeURIComponent(doi)}`;
         }
 
-        // Conservata per compat: usata altrove
-        async function editNote(doi, noteId) {
-          window.location.href = `notes.html?doi=${encodeURIComponent(doi)}&id=${encodeURIComponent(noteId)}`;
-        }
-
-        /* ===== helper: sizing titolo sul dorso ===== */
-        function adjustSpineFont(el, text, heightPx){
-          // Stima: più lungo il testo, più piccolo il font.
-          // Bilanciamento empirico: target 12-38 “caratteri-equivalenti” lungo l’asse verticale.
-          const len = Math.max(1, (text || '').length);
-          const target = Math.max(20, Math.min(40, Math.floor(heightPx / 3))); // “cap” verticali
-          // base 9..14 px
-          let size = Math.max(9, Math.min(14, Math.floor((target / len) * 120)));
-          // clamp extra per dorsi bassi
-          if (heightPx < 120) size = Math.max(8, Math.min(size, 12));
-          el.style.fontSize = size + 'px';
-        }
-
-        // Avvio
+        // Initial load
         loadAll();
 
-        // Reflow font al resize
-        window.addEventListener('resize', () => {
-          const titles = document.querySelectorAll('.spine .title');
-          titles.forEach(t => {
-            const book = t.closest('.book');
-            const h = parseInt(getComputedStyle(book).getPropertyValue('--h')) || 140;
-            adjustSpineFont(t, t.textContent || '', h);
-          });
-        });
+        // Nessun listener messaggi dal popup: popup disabilitato
       })();
     </script>
   </body>
-</html>
+  </html>
