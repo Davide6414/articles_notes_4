@@ -111,6 +111,11 @@
 
       .btn-link { background: #e0f2fe; border-color: #bae6fd; }
 
+      /* Header actions layout */
+      .header-actions { display: flex; gap: 8px; margin-left: auto; align-items: center; flex-wrap: wrap; }
+      .header-actions .btn { padding: 6px 10px; font-size: 12px; }
+      .section-header.collapsed-tile .header-actions { display: none; }
+
       /* Filters */
       .filters { margin-top: 16px; padding: 12px; border: 1px solid #e5e7eb; border-radius: 12px; background: #fafafa; }
       .filters h2 { margin: 0; font-size: 16px; }
@@ -806,9 +811,7 @@
               }
               // Actions (add note, variables)
               const actions = document.createElement('div');
-              actions.style.display = 'flex';
-              actions.style.gap = '8px';
-              actions.style.marginLeft = 'auto';
+              actions.className = 'header-actions';
 
               // Cerca DOI: apre una nuova scheda con una ricerca del DOI
               const searchDoiBtn = document.createElement('button');
@@ -860,7 +863,10 @@
               varsBtn.addEventListener('click', (e) => { e.stopPropagation(); window.location.href = `variabili.html?doi=${encodeURIComponent(doi)}`; });
               actions.appendChild(addNoteBtn);
               actions.appendChild(varsBtn);
-              header.appendChild(actions);
+              // Show actions only in expanded view to keep tiles compact
+              if (!section.classList.contains('collapsed')) {
+                header.appendChild(actions);
+              }
             }
             if (collapsed) section.classList.add('collapsed');
             applyHeaderLayout();
