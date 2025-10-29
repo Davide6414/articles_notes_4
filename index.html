@@ -809,6 +809,47 @@
               actions.style.display = 'flex';
               actions.style.gap = '8px';
               actions.style.marginLeft = 'auto';
+
+              // Cerca DOI: apre una nuova scheda con una ricerca del DOI
+              const searchDoiBtn = document.createElement('button');
+              searchDoiBtn.className = 'btn';
+              searchDoiBtn.textContent = 'Cerca DOI';
+              searchDoiBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const url = `https://www.google.com/search?q=${encodeURIComponent(doi)}`;
+                try { window.open(url, '_blank', 'noopener'); } catch (_) {}
+              });
+
+              // Copia DOI: copia negli appunti con fallback
+              const copyDoiBtn = document.createElement('button');
+              copyDoiBtn.className = 'btn';
+              copyDoiBtn.textContent = 'Copia DOI';
+              copyDoiBtn.addEventListener('click', async (e) => {
+                e.stopPropagation();
+                const text = String(doi || '');
+                let ok = false;
+                try {
+                  if (navigator.clipboard && navigator.clipboard.writeText) {
+                    await navigator.clipboard.writeText(text);
+                    ok = true;
+                  }
+                } catch (_) {}
+                if (!ok) {
+                  try {
+                    const ta = document.createElement('textarea');
+                    ta.value = text; ta.style.position = 'fixed'; ta.style.left = '-9999px';
+                    document.body.appendChild(ta);
+                    ta.focus(); ta.select();
+                    ok = document.execCommand('copy');
+                    document.body.removeChild(ta);
+                  } catch (_) { ok = false; }
+                }
+                if (ok) { if (window.Toast && Toast.success) Toast.success('DOI copiato'); }
+                else { if (window.Toast && Toast.error) Toast.error('Impossibile copiare il DOI'); }
+              });
+
+              actions.appendChild(searchDoiBtn);
+              actions.appendChild(copyDoiBtn);
               const addNoteBtn = document.createElement('button');
               addNoteBtn.className = 'btn';
               addNoteBtn.textContent = 'Aggiungi nota';
