@@ -156,7 +156,7 @@
     <section class="filters" aria-label="Filtri">
       <div class="filters-header">
         <h2>Filtri</h2>
-        <button id="filtersCollapseBtn" class="collapse-btn" aria-expanded="true" title="Comprimi/Espandi">▾</button>
+        <button id="filtersCollapseBtn" class="collapse-btn" aria-expanded="true" title="Comprimi/Espandi">v</button>
       </div>
       <div class="filters-grid">
         <div class="row">
@@ -170,23 +170,51 @@
         <div class="row">
           <label>Filtri avanzati</label>
           <div class="dropdown" id="advDropdown">
-            <button id="advBtn" class="btn" type="button">Seleziona…</button>
+            <button id="advBtn" class="btn" type="button">Seleziona...</button>
             <div id="advMenu" class="dropdown-menu">
               <div class="row">
                 <label for="typeMulti">Types</label>
                 <select id="typeMulti" multiple></select>
+                <div>
+                  <label for="typeLogic" style="font-size:12px;color:#374151;margin-right:6px;">Logica</label>
+                  <select id="typeLogic">
+                    <option value="OR">Qualsiasi (OR)</option>
+                    <option value="AND">Tutti (AND)</option>
+                  </select>
+                </div>
               </div>
               <div class="row">
                 <label for="tagsMulti">Tags</label>
                 <select id="tagsMulti" multiple></select>
+                <div>
+                  <label for="tagsLogic" style="font-size:12px;color:#374151;margin-right:6px;">Logica</label>
+                  <select id="tagsLogic">
+                    <option value="OR">Qualsiasi (OR)</option>
+                    <option value="AND">Tutti (AND)</option>
+                  </select>
+                </div>
               </div>
               <div class="row">
                 <label for="animalsMulti">Animals</label>
                 <select id="animalsMulti" multiple></select>
+                <div>
+                  <label for="animalsLogic" style="font-size:12px;color:#374151;margin-right:6px;">Logica</label>
+                  <select id="animalsLogic">
+                    <option value="OR">Qualsiasi (OR)</option>
+                    <option value="AND">Tutti (AND)</option>
+                  </select>
+                </div>
               </div>
               <div class="row">
                 <label for="methodsMulti">Methods</label>
                 <select id="methodsMulti" multiple></select>
+                <div>
+                  <label for="methodsLogic" style="font-size:12px;color:#374151;margin-right:6px;">Logica</label>
+                  <select id="methodsLogic">
+                    <option value="OR">Qualsiasi (OR)</option>
+                    <option value="AND">Tutti (AND)</option>
+                  </select>
+                </div>
               </div>
               <div class="filters-actions">
                 <button id="applyAdv" class="btn primary" type="button">Applica</button>
@@ -218,6 +246,10 @@
         const tagsMulti = document.getElementById('tagsMulti');
         const animalsMulti = document.getElementById('animalsMulti');
         const methodsMulti = document.getElementById('methodsMulti');
+        const typeLogic = document.getElementById('typeLogic');
+        const tagsLogic = document.getElementById('tagsLogic');
+        const animalsLogic = document.getElementById('animalsLogic');
+        const methodsLogic = document.getElementById('methodsLogic');
         const applyAdv = document.getElementById('applyAdv');
         const clearAdv = document.getElementById('clearAdv');
 
@@ -226,7 +258,7 @@
         const COLLAPSE_KEY = 'notesCollapsed.v1';
         const FILTERS_COLLAPSE_KEY = 'filtersCollapsed.v1';
         let facets = { types: [], tags: [], animals: [], methods: [] };
-        let filters = { title: '', types: new Set(), tags: new Set(), animals: new Set(), methods: new Set() };
+        let filters = { title: '', types: new Set(), tags: new Set(), animals: new Set(), methods: new Set(), modes: { types: 'OR', tags: 'OR', animals: 'OR', methods: 'OR' } };
 
         function loadTypeColors() {
           try { return JSON.parse(localStorage.getItem(TYPE_COLOR_KEY) || '{}') || {}; } catch (_) { return {}; }
@@ -400,19 +432,31 @@
             filters.tags = new Set(Array.from(tagsMulti.selectedOptions).map(o=>o.value));
             filters.methods = new Set(Array.from(methodsMulti.selectedOptions).map(o=>o.value));
             filters.animals = new Set(Array.from(animalsMulti.selectedOptions).map(o=>o.value));
+            // logic modes
+            filters.modes.types = (typeLogic && typeLogic.value) || 'OR';
+            filters.modes.tags = (tagsLogic && tagsLogic.value) || 'OR';
+            filters.modes.animals = (animalsLogic && animalsLogic.value) || 'OR';
+            filters.modes.methods = (methodsLogic && methodsLogic.value) || 'OR';
             // non chiudere forzatamente; lasciare aperto se l'utente vuole continuare
             renderNotes();
             renderFilters();
           };
           clearAdv.onclick = () => {
             filters.types = new Set(); filters.tags = new Set(); filters.animals = new Set(); filters.methods = new Set();
+            filters.modes = { types: 'OR', tags: 'OR', animals: 'OR', methods: 'OR' };
             renderFilters(); renderNotes();
           };
+
+          // Initialize logic selects
+          if (typeLogic) typeLogic.value = filters.modes.types || 'OR';
+          if (tagsLogic) tagsLogic.value = filters.modes.tags || 'OR';
+          if (animalsLogic) animalsLogic.value = filters.modes.animals || 'OR';
+          if (methodsLogic) methodsLogic.value = filters.modes.methods || 'OR';
 
           // Dropdown open/close
           function updateAdvBtnLabel(){
             const cnt = filters.types.size + filters.tags.size + filters.animals.size + filters.methods.size;
-            advBtn.textContent = cnt ? `Seleziona… (${cnt})` : 'Seleziona…';
+            advBtn.textContent = cnt ? `Seleziona... (${cnt})` : 'Seleziona...';
           }
           updateAdvBtnLabel();
           advBtn.onclick = (e) => { e.stopPropagation(); advDropdown.classList.toggle('open'); };
@@ -423,12 +467,12 @@
           filtersEl.classList.toggle('collapsed', collapsed);
           if (filtersCollapseBtn) {
             filtersCollapseBtn.setAttribute('aria-expanded', String(!collapsed));
-            filtersCollapseBtn.textContent = collapsed ? '▸' : '▾';
+            filtersCollapseBtn.textContent = collapsed ? '>' : 'v';
             filtersCollapseBtn.onclick = () => {
               const nowCollapsed = !filtersEl.classList.contains('collapsed');
               filtersEl.classList.toggle('collapsed', nowCollapsed);
               filtersCollapseBtn.setAttribute('aria-expanded', String(!nowCollapsed));
-              filtersCollapseBtn.textContent = nowCollapsed ? '▸' : '▾';
+              filtersCollapseBtn.textContent = nowCollapsed ? '>' : 'v';
               saveFiltersCollapsed(nowCollapsed);
             };
           }
@@ -584,28 +628,54 @@
             const title = (getTitle(entry) || '').toLowerCase();
             if (!title.includes(filters.title)) return false;
           }
-          // type filter (OR tra selezioni)
+          // type filter: OR by default; AND means: l'articolo deve contenere tutte le type selezionate
           if (filters.types.size) {
-            if (!note.type || !filters.types.has(note.type)) return false;
+            const mode = (filters.modes && filters.modes.types) || 'OR';
+            if (mode === 'OR') {
+              if (!note.type || !filters.types.has(note.type)) return false;
+            } else {
+              // AND: articolo deve avere almeno una nota per ogni type selezionata
+              const notes = Array.isArray(entry?.user_notes) ? entry.user_notes : (entry?.user_note ? [entry.user_note] : []);
+              const articleTypes = new Set();
+              for (const n of notes) { if (n && n.type) articleTypes.add(n.type); }
+              for (const t of Array.from(filters.types)) { if (!articleTypes.has(t)) return false; }
+              // e la nota corrente deve comunque appartenere a una delle type selezionate
+              if (!note.type || !filters.types.has(note.type)) return false;
+            }
           }
-          // tags filter (OR tra selezioni)
+          // tags filter (OR/AND tra selezioni)
           if (filters.tags.size) {
             const tags = Array.isArray(note.tags) ? note.tags : (note.tags ? [String(note.tags)] : []);
-            const hit = tags.some(t => filters.tags.has(t));
-            if (!hit) return false;
+            const mode = (filters.modes && filters.modes.tags) || 'OR';
+            if (mode === 'OR') {
+              const hit = tags.some(t => filters.tags.has(t));
+              if (!hit) return false;
+            } else {
+              for (const t of Array.from(filters.tags)) { if (!tags.includes(t)) return false; }
+            }
           }
-          // animals filter (OR tra selezioni) per nota
+          // animals filter (OR/AND tra selezioni) per nota
           if (filters.animals.size) {
             const animals = Array.isArray(note.animals) ? note.animals : (note.animals ? [String(note.animals)] : []);
-            const hit = animals.some(a => filters.animals.has(a));
-            if (!hit) return false;
+            const mode = (filters.modes && filters.modes.animals) || 'OR';
+            if (mode === 'OR') {
+              const hit = animals.some(a => filters.animals.has(a));
+              if (!hit) return false;
+            } else {
+              for (const a of Array.from(filters.animals)) { if (!animals.includes(a)) return false; }
+            }
           }
-          // methods filter (OR tra selezioni) at article-level
+          // methods filter (OR/AND tra selezioni) at article-level
           if (filters.methods.size) {
+            const mode = (filters.modes && filters.modes.methods) || 'OR';
             const mm = entry?.dettagli?.methods;
             const methods = Array.isArray(mm) ? mm : (mm ? [String(mm)] : []);
-            const hit = methods.some(m => filters.methods.has(m));
-            if (!hit) return false;
+            if (mode === 'OR') {
+              const hit = methods.some(m => filters.methods.has(m));
+              if (!hit) return false;
+            } else {
+              for (const m of Array.from(filters.methods)) { if (!methods.includes(m)) return false; }
+            }
           }
           return true;
         }
@@ -684,7 +754,7 @@
             btn.className = 'collapse-btn';
             const collapsed = !!collapsedMap[doi];
             btn.setAttribute('aria-expanded', String(!collapsed));
-            btn.textContent = collapsed ? '▸' : '▾';
+            btn.textContent = collapsed ? '>' : 'v';
             header.appendChild(btn);
             // Add icon + caption for collapsed view
             const icon = document.createElement('div'); icon.className = 'article-icon'; icon.textContent = '📄';
@@ -756,7 +826,7 @@
               const nowCollapsed = grid.style.display !== 'none' ? true : false;
               grid.style.display = nowCollapsed ? 'none' : '';
               section.classList.toggle('collapsed', nowCollapsed);
-              btn.textContent = nowCollapsed ? '▸' : '▾';
+              btn.textContent = nowCollapsed ? '>' : 'v';
               btn.setAttribute('aria-expanded', String(!nowCollapsed));
               collapsedMap[doi] = nowCollapsed;
               saveCollapsed(collapsedMap);
