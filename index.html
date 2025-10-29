@@ -260,6 +260,25 @@
         let facets = { types: [], tags: [], animals: [], methods: [] };
         let filters = { title: '', types: new Set(), tags: new Set(), animals: new Set(), methods: new Set(), modes: { types: 'OR', tags: 'OR', animals: 'OR', methods: 'OR' } };
 
+        // Allow toggling items in <select multiple> with simple click (no Ctrl/Cmd needed)
+        function enableMultiClickToggle(selectEl) {
+          if (!selectEl || selectEl.__multiToggleEnabled) return;
+          selectEl.addEventListener('mousedown', (e) => {
+            const t = e.target;
+            if (t && t.tagName === 'OPTION') {
+              e.preventDefault();
+              const keep = selectEl.scrollTop; // preserve scroll
+              t.selected = !t.selected;
+              // Fire change so UI relying on it can react if needed
+              const evt = new Event('change', { bubbles: true });
+              selectEl.dispatchEvent(evt);
+              // Restore scroll on next frame to avoid jump
+              setTimeout(() => { try { selectEl.scrollTop = keep; } catch (_) {} }, 0);
+            }
+          });
+          selectEl.__multiToggleEnabled = true;
+        }
+
         function loadTypeColors() {
           try { return JSON.parse(localStorage.getItem(TYPE_COLOR_KEY) || '{}') || {}; } catch (_) { return {}; }
         }
@@ -426,6 +445,12 @@
           populateMulti(tagsMulti, facets.tags, filters.tags);
           populateMulti(animalsMulti, facets.animals, filters.animals);
           populateMulti(methodsMulti, facets.methods, filters.methods);
+
+          // Enable simple click toggling for all multi-selects
+          enableMultiClickToggle(typeMulti);
+          enableMultiClickToggle(tagsMulti);
+          enableMultiClickToggle(animalsMulti);
+          enableMultiClickToggle(methodsMulti);
 
           applyAdv.onclick = () => {
             filters.types = new Set(Array.from(typeMulti.selectedOptions).map(o=>o.value));
