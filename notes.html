@@ -109,7 +109,7 @@
         <textarea id="commentInput" rows="2" placeholder="Commento aggiuntivo..."></textarea>
       </div>
 
-      <!-- Glossario (opzionale) -->
+      <!-- Glossario (opzionale, supporta più termini) -->
       <div class="row">
         <details id="glossaryBox">
           <summary style="cursor:pointer; user-select:none;">
@@ -118,18 +118,14 @@
               Glossario (opzionale)
             </label>
           </summary>
-          <div class="grid">
-            <div class="row">
-              <label for="glossaryTerm">Termine</label>
-              <input id="glossaryTerm" type="text" placeholder="Nome del termine" />
-            </div>
-            <div class="row">
-              <label for="glossaryMeaning">Significato</label>
-              <textarea id="glossaryMeaning" rows="3" placeholder="Definizione del termine"></textarea>
+          <div class="row">
+            <div style="display:flex; align-items:center; gap:8px;">
+              <button id="addGlossaryRow" class="btn" type="button">+ Aggiungi termine</button>
             </div>
           </div>
+          <div id="glossaryList" class="grid-1"></div>
           <div class="row">
-            <div style="font-size:12px; color:#6b7280;">La voce sarà legata a DOI, Tipo, Tag e Importanza impostati sopra.</div>
+            <div style="font-size:12px; color:#6b7280;">Le voci saranno legate a DOI, Tipo, Tag e Importanza impostati sopra.</div>
           </div>
         </details>
       </div>
@@ -161,10 +157,49 @@
         const commentInput = document.getElementById('commentInput');
         const noteText = document.getElementById('noteText');
         const extractToggle = document.getElementById('extractToggle');
-        // Glossario
+        // Glossario (multi-rows)
         const glossaryEnabled = document.getElementById('glossaryEnabled');
-        const glossaryTerm = document.getElementById('glossaryTerm');
-        const glossaryMeaning = document.getElementById('glossaryMeaning');
+        const glossaryList = document.getElementById('glossaryList');
+        const addGlossaryRow = document.getElementById('addGlossaryRow');
+
+        function addGlossRow(data={}){
+          const row = document.createElement('div');
+          row.className = 'gloss-row';
+          row.style.border = '1px solid #e5e7eb';
+          row.style.borderRadius = '8px';
+          row.style.padding = '8px';
+          row.style.marginTop = '8px';
+          const hid = document.createElement('input'); hid.type = 'hidden'; hid.className = 'gloss-id'; hid.value = data.id || ''; row.appendChild(hid);
+          const grid = document.createElement('div'); grid.className = 'grid';
+          const r1 = document.createElement('div'); r1.className = 'row';
+          r1.appendChild(Object.assign(document.createElement('label'), { textContent: 'Termine' }));
+          const term = Object.assign(document.createElement('input'), { type: 'text', placeholder: 'Nome del termine' }); term.className = 'gloss-term'; term.value = data.term || ''; r1.appendChild(term);
+          const r2 = document.createElement('div'); r2.className = 'row';
+          r2.appendChild(Object.assign(document.createElement('label'), { textContent: 'Significato' }));
+          const meaning = Object.assign(document.createElement('textarea'), { rows: 3, placeholder: 'Definizione del termine' }); meaning.className = 'gloss-meaning'; meaning.value = data.meaning || ''; r2.appendChild(meaning);
+          grid.appendChild(r1); grid.appendChild(r2);
+          row.appendChild(grid);
+          const controls = document.createElement('div'); controls.className = 'row'; controls.style.display = 'flex'; controls.style.justifyContent = 'flex-end';
+          const del = Object.assign(document.createElement('button'), { className:'btn', type:'button', textContent:'Rimuovi' });
+          del.addEventListener('click', () => row.remove());
+          controls.appendChild(del); row.appendChild(controls);
+          glossaryList.appendChild(row);
+        }
+
+        function collectGlossRows(){
+          const out = [];
+          if (!glossaryList) return out;
+          const rows = glossaryList.querySelectorAll('.gloss-row');
+          rows.forEach(r => {
+            const id = (r.querySelector('.gloss-id') && r.querySelector('.gloss-id').value) || '';
+            const term = (r.querySelector('.gloss-term') && r.querySelector('.gloss-term').value) || '';
+            const meaning = (r.querySelector('.gloss-meaning') && r.querySelector('.gloss-meaning').value) || '';
+            if ((term && term.trim()) || (meaning && meaning.trim())) {
+              out.push({ id: id || null, term: term.trim(), meaning: meaning.trim() });
+            }
+          });
+          return out;
+        }
         const typeChips = document.getElementById('typeChips');
         const tagChips = document.getElementById('tagChips');
         const animalChips = document.getElementById('animalChips');
@@ -448,16 +483,16 @@
             applyToggleState();
             noteText.value = n.text || '';
           }
-          // Prefill glossary if linked to this note
+          // Prefill glossary rows linked to this note
           try {
+            if (glossaryList) glossaryList.innerHTML = '';
             const gArr = Array.isArray(currentEntry.user_glossario) ? currentEntry.user_glossario : [];
-            const g = gArr.find(x => x && (x.sourceNoteId === n.id || x.createdAt === n.createdAt));
-            if (g && glossaryEnabled) {
+            const list = gArr.filter(x => x && (x.sourceNoteId === n.id || x.createdAt === n.createdAt));
+            if (list.length && glossaryEnabled) {
               glossaryEnabled.checked = true;
-              if (glossaryTerm) glossaryTerm.value = g.term || '';
-              if (glossaryMeaning) glossaryMeaning.value = g.meaning || '';
               const box = document.getElementById('glossaryBox');
               if (box && !box.open) box.open = true;
+              list.forEach(g => addGlossRow({ id: g.id, term: g.term, meaning: g.meaning }));
             }
           } catch (_) {}
         }
@@ -511,32 +546,33 @@
             if (idx >= 0) notesArr[idx] = enriched; else notesArr.push(enriched);
             combined.user_notes = notesArr;
 
-            // Gestione voce glossario opzionale
+            // Gestione glossario multiplo collegato alla nota
             try {
               const gArr = Array.isArray(combined.user_glossario) ? combined.user_glossario : [];
-              const hasGlossInputs = (glossaryTerm && glossaryTerm.value && glossaryTerm.value.trim()) || (glossaryMeaning && glossaryMeaning.value && glossaryMeaning.value.trim());
-              if (glossaryEnabled && glossaryEnabled.checked && hasGlossInputs) {
-                const existing = (editingNote && gArr.find(x => x && (x.sourceNoteId === enriched.id)) ) || null;
-                const gNow = existing ? (existing.createdAt || now) : now;
-                const gl = {
-                  id: (existing && existing.id) || (crypto.randomUUID ? crypto.randomUUID() : ('gls_' + Date.now().toString(36))),
-                  doi,
-                  term: (glossaryTerm && glossaryTerm.value || '').trim(),
-                  meaning: (glossaryMeaning && glossaryMeaning.value || '').trim(),
-                  type: enriched.type || null,
-                  tags: Array.isArray(enriched.tags) ? enriched.tags : [],
-                  importanza: enriched.importanza,
-                  createdAt: gNow,
-                  sourceNoteId: enriched.id,
-                };
-                if (existing) {
-                  const gi = gArr.findIndex(x => x && x.id === existing.id);
-                  if (gi >= 0) gArr[gi] = gl; else gArr.push(gl);
-                } else {
-                  gArr.push(gl);
-                }
+              const prevForNote = gArr.filter(x => x && x.sourceNoteId === enriched.id);
+              const oldById = new Map(prevForNote.map(x => [x.id, x]));
+              let updated = gArr.filter(x => !x || x.sourceNoteId !== enriched.id);
+              if (glossaryEnabled && glossaryEnabled.checked) {
+                const rows = collectGlossRows();
+                rows.forEach((r, i) => {
+                  const existing = (r.id && oldById.get(r.id)) || null;
+                  const id = r.id || (crypto.randomUUID ? crypto.randomUUID() : ('gls_' + Date.now().toString(36) + '_' + i));
+                  const gNow = existing ? (existing.createdAt || now) : now;
+                  const gl = {
+                    id,
+                    doi,
+                    term: r.term || '',
+                    meaning: r.meaning || '',
+                    type: enriched.type || null,
+                    tags: Array.isArray(enriched.tags) ? enriched.tags : [],
+                    importanza: enriched.importanza,
+                    createdAt: gNow,
+                    sourceNoteId: enriched.id,
+                  };
+                  updated.push(gl);
+                });
               }
-              combined.user_glossario = gArr;
+              combined.user_glossario = updated;
             } catch (_) {}
 
             const tid = Toast ? Toast.loading('Salvataggio nota...') : null;
@@ -548,6 +584,15 @@
             if (Toast && Toast.error) Toast.error('Errore salvataggio nota');
             alert('Errore durante il salvataggio');
           }
+        }
+
+        if (addGlossaryRow) {
+          addGlossaryRow.addEventListener('click', () => {
+            addGlossRow({});
+            if (glossaryEnabled) glossaryEnabled.checked = true;
+            const box = document.getElementById('glossaryBox');
+            if (box && !box.open) box.open = true;
+          });
         }
 
         saveBtn.addEventListener('click', save);
