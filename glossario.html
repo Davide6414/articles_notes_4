@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="it">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Glossario</title>
+    <link rel="stylesheet" href="project/assets/css/style.css" />
+    <script src="project/assets/js/dataService.js"></script>
+    <script src="project/assets/js/toast.js"></script>
+    <style>
+      :root { --gap: 12px; --border: 1px solid #e5e7eb; --radius: 12px; }
+      body { margin: 2rem; font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; color: #111827; }
+      a { color: #2563eb; text-decoration: none; }
+      a:hover { text-decoration: underline; }
+      .header { display: grid; grid-template-columns: 1fr auto; gap: 12px; align-items: center; margin-bottom: 16px; }
+      .title { margin: 0; font-size: 22px; }
+      .toolbar { display: flex; gap: 8px; align-items: center; }
+      .btn { font-size: 14px; padding: 8px 12px; border-radius: 8px; border: 1px solid #d0d0d0; background: #fff; cursor: pointer; }
+      .btn:hover { background: #f6f6f6; }
+      input[type="search"] { width: 100%; padding: 8px 10px; border: 1px solid #d0d0d0; border-radius: 8px; font-size: 14px; }
+      table { width: 100%; border-collapse: collapse; }
+      th, td { border: 1px solid #e5e7eb; padding: 8px 10px; font-size: 13px; vertical-align: top; }
+      th { background: #f9fafb; text-align: left; }
+      .muted { color: #6b7280; }
+      .nowrap { white-space: nowrap; }
+      .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+      .chip { font-size: 12px; padding: 4px 8px; border-radius: 9999px; border: 1px solid #e5e7eb; background: #f8fafc; }
+      .filter { display: grid; grid-template-columns: 1fr; gap: 10px; margin-bottom: 12px; }
+    </style>
+  </head>
+  <body>
+    <div class="header">
+      <div>
+        <h1 class="title">Glossario</h1>
+      </div>
+      <div class="toolbar">
+        <a class="btn" href="index.html">← Torna</a>
+      </div>
+    </div>
+
+    <div class="filter">
+      <input id="search" type="search" placeholder="Cerca per termine o significato" />
+    </div>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Termine</th>
+            <th>Significato</th>
+            <th>Articolo</th>
+            <th class="nowrap">DOI</th>
+            <th>Tipo</th>
+            <th>Tag</th>
+            <th class="nowrap">Importanza</th>
+          </tr>
+        </thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </div>
+
+    <script>
+      (function(){
+        const tbody = document.getElementById('tbody');
+        const searchEl = document.getElementById('search');
+
+        let rows = [];
+
+        function getTitle(entry){
+          if (!entry) return '';
+          const t = entry.title;
+          if (Array.isArray(t) && t.length) return t.join(' — ');
+          if (typeof t === 'string') return t;
+          return '';
+        }
+
+        function render(){
+          const q = (searchEl.value || '').toLowerCase().trim();
+          tbody.innerHTML = '';
+          const filtered = rows.filter(r => {
+            if (!q) return true;
+            return (r.term && r.term.toLowerCase().includes(q)) || (r.meaning && r.meaning.toLowerCase().includes(q)) || (r.title && r.title.toLowerCase().includes(q));
+          });
+          if (!filtered.length) {
+            const tr = document.createElement('tr');
+            const td = document.createElement('td'); td.colSpan = 7; td.className='muted'; td.textContent = 'Nessun termine'; tr.appendChild(td); tbody.appendChild(tr); return;
+          }
+          for (const r of filtered) {
+            const tr = document.createElement('tr');
+            function td(txt, cls){ const el=document.createElement('td'); if (cls) el.className=cls; el.textContent = (txt==null?'':String(txt)); return el; }
+            tr.appendChild(td(r.term));
+            tr.appendChild(td(r.meaning));
+            const tdTitle = document.createElement('td'); tdTitle.textContent = r.title || ''; tr.appendChild(tdTitle);
+            const tdDoi = document.createElement('td'); tdDoi.className='nowrap'; const a=document.createElement('a'); a.href=`details.html?doi=${encodeURIComponent(r.doi)}`; a.textContent=r.doi; tdDoi.appendChild(a); tr.appendChild(tdDoi);
+            tr.appendChild(td(r.type || ''));
+            const tdTags = document.createElement('td'); const wrap=document.createElement('div'); wrap.className='chips'; (Array.isArray(r.tags)?r.tags:[]).forEach(t => { const c=document.createElement('span'); c.className='chip'; c.textContent=t; wrap.appendChild(c); }); tdTags.appendChild(wrap); tr.appendChild(tdTags);
+            tr.appendChild(td(r.importanza != null ? r.importanza : ''));
+            tbody.appendChild(tr);
+          }
+        }
+
+        async function load(){
+          const tid = Toast ? Toast.loading('Caricamento glossario...') : null;
+          try {
+            const db = await DataService.getAll();
+            rows = [];
+            for (const doi of Object.keys(db)){
+              const entry = db[doi];
+              const title = getTitle(entry) || doi;
+              const gArr = Array.isArray(entry && entry.user_glossario) ? entry.user_glossario : [];
+              for (const g of gArr){
+                rows.push({
+                  doi,
+                  title,
+                  term: g && g.term || '',
+                  meaning: g && g.meaning || '',
+                  type: g && g.type || '',
+                  tags: Array.isArray(g && g.tags) ? g.tags : [],
+                  importanza: g && g.importanza,
+                  createdAt: g && g.createdAt,
+                });
+              }
+            }
+            rows.sort((a,b)=> (a.term||'').localeCompare(b.term||'', undefined, {sensitivity:'base'}));
+            render();
+            if (tid && Toast.update) { Toast.update(tid, 'Glossario pronto', 'success'); setTimeout(()=>Toast.dismiss(tid), 600); }
+          } catch (e) {
+            console.error('Errore caricamento glossario', e);
+            if (Toast && Toast.error) Toast.error('Errore caricamento glossario');
+          }
+        }
+
+        searchEl.addEventListener('input', render);
+        load();
+      })();
+    </script>
+  </body>
+  </html>
+

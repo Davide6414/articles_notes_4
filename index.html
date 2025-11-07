@@ -155,6 +155,7 @@
         <a class="btn" href="variabili.html">Variabili</a>
         <a class="btn" href="variabili-tabella.html">Tabella variabili</a>
         <a class="btn" href="grafici.html">Tabella grafici</a>
+        <a class="btn" href="glossario.html">Glossario</a>
       </div>
     </div>
 
@@ -313,9 +314,12 @@
         }
         function importanceToBg(val){
           const v = clampImportanza(val);
-          const hue = 55 - (v - 1) * (55 / 9); // yellow->red
-          const sat = 78 + (v - 1) * (20 / 9); // 78%->~98%
-          const light = 96 - (v - 1) * (9 / 9); // 96%->87%
+          // Green (low) -> Red (high)
+          const hueStart = 120; // green
+          const hueEnd = 0;     // red
+          const hue = hueStart - (v - 1) * ((hueStart - hueEnd) / 9);
+          const sat = 70 + (v - 1) * (20 / 9);   // 70% -> ~90%
+          const light = 96 - (v - 1) * (10 / 9); // 96% -> ~86%
           return `hsl(${hue.toFixed(1)} ${sat.toFixed(1)}% ${light.toFixed(1)}%)`;
         }
 
@@ -642,7 +646,7 @@
           const editBtn = document.createElement('button');
           editBtn.className = 'btn';
           editBtn.textContent = 'Modifica';
-          editBtn.addEventListener('click', () => editNote(doi, note.id));
+          editBtn.addEventListener('click', (e) => { e.stopPropagation(); editNote(doi, note); });
           right.appendChild(editBtn);
 
           actions.appendChild(left);
@@ -910,8 +914,20 @@
           }
         }
 
-        async function editNote(doi, noteId) {
-          window.location.href = `notes.html?doi=${encodeURIComponent(doi)}&id=${encodeURIComponent(noteId)}`;
+        async function editNote(doi, note) {
+          if (!doi) return;
+          const id = note && note.id;
+          const ts = note && note.createdAt;
+          if (id) {
+            window.location.href = `notes.html?doi=${encodeURIComponent(doi)}&id=${encodeURIComponent(id)}`;
+            return;
+          }
+          if (ts) {
+            window.location.href = `notes.html?doi=${encodeURIComponent(doi)}&ts=${encodeURIComponent(ts)}`;
+            return;
+          }
+          // fallback: open create for that DOI
+          window.location.href = `notes.html?doi=${encodeURIComponent(doi)}`;
         }
 
         async function openDetailsFor(doi) {

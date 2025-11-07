@@ -109,6 +109,31 @@
         <textarea id="commentInput" rows="2" placeholder="Commento aggiuntivo..."></textarea>
       </div>
 
+      <!-- Glossario (opzionale) -->
+      <div class="row">
+        <details id="glossaryBox">
+          <summary style="cursor:pointer; user-select:none;">
+            <label style="display:inline-flex; align-items:center; gap:8px; font-weight: normal;">
+              <input id="glossaryEnabled" type="checkbox" />
+              Glossario (opzionale)
+            </label>
+          </summary>
+          <div class="grid">
+            <div class="row">
+              <label for="glossaryTerm">Termine</label>
+              <input id="glossaryTerm" type="text" placeholder="Nome del termine" />
+            </div>
+            <div class="row">
+              <label for="glossaryMeaning">Significato</label>
+              <textarea id="glossaryMeaning" rows="3" placeholder="Definizione del termine"></textarea>
+            </div>
+          </div>
+          <div class="row">
+            <div style="font-size:12px; color:#6b7280;">La voce sarà legata a DOI, Tipo, Tag e Importanza impostati sopra.</div>
+          </div>
+        </details>
+      </div>
+
       <div class="row">
         <label for="noteText">Testo nota</label>
         <div class="grid-1">
@@ -136,6 +161,10 @@
         const commentInput = document.getElementById('commentInput');
         const noteText = document.getElementById('noteText');
         const extractToggle = document.getElementById('extractToggle');
+        // Glossario
+        const glossaryEnabled = document.getElementById('glossaryEnabled');
+        const glossaryTerm = document.getElementById('glossaryTerm');
+        const glossaryMeaning = document.getElementById('glossaryMeaning');
         const typeChips = document.getElementById('typeChips');
         const tagChips = document.getElementById('tagChips');
         const animalChips = document.getElementById('animalChips');
@@ -144,7 +173,9 @@
 
         const params = new URLSearchParams(location.search);
         const initialDOI = params.get('doi') || '';
-        const noteId = params.get('id') || '';
+        const rawId = params.get('id');
+        const noteId = (rawId && rawId !== 'undefined') ? rawId : '';
+        const noteTs = params.get('ts') || '';
 
         let db = {};
         let currentEntry = null;
@@ -265,7 +296,7 @@
             if (idx >= 0) doiSelect.value = initialDOI;
           }
           onDOIChange();
-          if (noteId) prefillForEdit(noteId);
+          if (noteId || noteTs) prefillForEdit(noteId);
         }
 
         function computeFacets(){
@@ -382,7 +413,7 @@
         function onDOIChange(){
           const doi = doiSelect.value;
           currentEntry = db[doi] || null;
-          pageTitle.textContent = noteId ? 'Modifica nota' : 'Nuova nota';
+          pageTitle.textContent = (noteId || noteTs) ? 'Modifica nota' : 'Nuova nota';
           pageSub.textContent = doi ? ('DOI: ' + doi) : '';
         }
         doiSelect.addEventListener('change', onDOIChange);
@@ -390,7 +421,9 @@
         function prefillForEdit(id){
           if (!currentEntry) return;
           const notes = Array.isArray(currentEntry.user_notes) ? currentEntry.user_notes : (currentEntry.user_note ? [currentEntry.user_note] : []);
-          const n = notes.find(x => x && x.id === id);
+          let n = null;
+          if (id) n = notes.find(x => x && x.id === id);
+          if (!n && noteTs) n = notes.find(x => x && x.createdAt === noteTs);
           if (!n) return;
           editingNote = n;
           typeInput.value = n.type || '';
@@ -415,6 +448,18 @@
             applyToggleState();
             noteText.value = n.text || '';
           }
+          // Prefill glossary if linked to this note
+          try {
+            const gArr = Array.isArray(currentEntry.user_glossario) ? currentEntry.user_glossario : [];
+            const g = gArr.find(x => x && (x.sourceNoteId === n.id || x.createdAt === n.createdAt));
+            if (g && glossaryEnabled) {
+              glossaryEnabled.checked = true;
+              if (glossaryTerm) glossaryTerm.value = g.term || '';
+              if (glossaryMeaning) glossaryMeaning.value = g.meaning || '';
+              const box = document.getElementById('glossaryBox');
+              if (box && !box.open) box.open = true;
+            }
+          } catch (_) {}
         }
 
         urlInput.addEventListener('input', () => refreshExtractedText());
@@ -458,9 +503,41 @@
               editingNote ? {} : {}
             );
 
-            const idx = notesArr.findIndex(n => n && n.id === enriched.id);
+            let idx = notesArr.findIndex(n => n && n.id === enriched.id);
+            if (idx < 0 && editingNote && !editingNote.id) {
+              // Fallback: match legacy notes without id by createdAt timestamp
+              idx = notesArr.findIndex(n => n && n.createdAt === editingNote.createdAt);
+            }
             if (idx >= 0) notesArr[idx] = enriched; else notesArr.push(enriched);
             combined.user_notes = notesArr;
+
+            // Gestione voce glossario opzionale
+            try {
+              const gArr = Array.isArray(combined.user_glossario) ? combined.user_glossario : [];
+              const hasGlossInputs = (glossaryTerm && glossaryTerm.value && glossaryTerm.value.trim()) || (glossaryMeaning && glossaryMeaning.value && glossaryMeaning.value.trim());
+              if (glossaryEnabled && glossaryEnabled.checked && hasGlossInputs) {
+                const existing = (editingNote && gArr.find(x => x && (x.sourceNoteId === enriched.id)) ) || null;
+                const gNow = existing ? (existing.createdAt || now) : now;
+                const gl = {
+                  id: (existing && existing.id) || (crypto.randomUUID ? crypto.randomUUID() : ('gls_' + Date.now().toString(36))),
+                  doi,
+                  term: (glossaryTerm && glossaryTerm.value || '').trim(),
+                  meaning: (glossaryMeaning && glossaryMeaning.value || '').trim(),
+                  type: enriched.type || null,
+                  tags: Array.isArray(enriched.tags) ? enriched.tags : [],
+                  importanza: enriched.importanza,
+                  createdAt: gNow,
+                  sourceNoteId: enriched.id,
+                };
+                if (existing) {
+                  const gi = gArr.findIndex(x => x && x.id === existing.id);
+                  if (gi >= 0) gArr[gi] = gl; else gArr.push(gl);
+                } else {
+                  gArr.push(gl);
+                }
+              }
+              combined.user_glossario = gArr;
+            } catch (_) {}
 
             const tid = Toast ? Toast.loading('Salvataggio nota...') : null;
             await DataService.saveRecord(doi, combined);

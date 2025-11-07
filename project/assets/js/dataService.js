@@ -13,6 +13,7 @@
         abstract: r.abstract != null ? r.abstract : null,
       };
       if (Array.isArray(r.user_notes)) out.user_notes = r.user_notes;
+      if (Array.isArray(r.user_glossario)) out.user_glossario = r.user_glossario;
       if (r.dettagli && typeof r.dettagli === 'object') out.dettagli = r.dettagli;
       if (Array.isArray(r.dati_variabili)) out.dati_variabili = r.dati_variabili;
       return out;
