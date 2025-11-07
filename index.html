@@ -145,6 +145,17 @@
 
       /* Details shown only in popup via details-popup.html */
     </style>
+    <style>
+      /* Overlay for references and citations */
+      .overlay-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.35); display: none; align-items: center; justify-content: center; z-index: 100; }
+      .overlay-backdrop.open { display: flex; }
+      .overlay-dialog { max-width: 720px; width: calc(100% - 2rem); background: #fff; border: 1px solid #e5e7eb; border-radius: 12px; box-shadow: 0 20px 50px rgba(0,0,0,0.15); }
+      .overlay-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 10px 12px; border-bottom: 1px solid #e5e7eb; }
+      .overlay-body { padding: 12px; display: grid; gap: 8px; max-height: 60vh; overflow: auto; }
+      .overlay-title { font-size: 16px; margin: 0; }
+      .overlay-close { font-size: 14px; padding: 6px 10px; border-radius: 8px; border: 1px solid #e5e7eb; background: #fff; cursor: pointer; }
+      .ref-row { display: grid; gap: 2px; padding: 8px; border: 1px solid #e5e7eb; border-radius: 8px; }
+    </style>
   </head>
   <body>
     <h1 class="header">Article Notes</h1>
@@ -260,6 +271,8 @@
         const clearAdv = document.getElementById('clearAdv');
 
         let db = {};
+        let doiIndex = new Map();
+        let crossrefCache = new Map();
         const TYPE_COLOR_KEY = 'typeColors.v1';
         const COLLAPSE_KEY = 'notesCollapsed.v1';
         const FILTERS_COLLAPSE_KEY = 'filtersCollapsed.v1';
@@ -402,6 +415,66 @@
             push(d.commenti.idee_future);
           }
           return parts.join(' ').toLowerCase();
+        }
+
+        // Overlay helpers
+        function ensureOverlay(){
+          let back = document.getElementById('overlayBackdrop');
+          if (!back) {
+            back = document.createElement('div'); back.id = 'overlayBackdrop'; back.className='overlay-backdrop';
+            const dialog = document.createElement('div'); dialog.className='overlay-dialog'; dialog.id='overlayDialog';
+            const head = document.createElement('div'); head.className='overlay-head';
+            const title = document.createElement('h3'); title.className='overlay-title'; title.id='overlayTitle'; title.textContent='';
+            const close = document.createElement('button'); close.className='overlay-close'; close.textContent = 'Chiudi';
+            close.addEventListener('click', ()=> back.classList.remove('open'));
+            head.appendChild(title); head.appendChild(close);
+            const body = document.createElement('div'); body.className='overlay-body'; body.id='overlayBody';
+            dialog.appendChild(head); dialog.appendChild(body); back.appendChild(dialog); document.body.appendChild(back);
+            back.addEventListener('click', (e)=>{ if (e.target === back) back.classList.remove('open'); });
+          }
+          return back;
+        }
+        function openOverlay(titleText, nodes){
+          const back = ensureOverlay();
+          const t = document.getElementById('overlayTitle'); const b = document.getElementById('overlayBody');
+          t.textContent = titleText || '';
+          b.innerHTML = '';
+          if (Array.isArray(nodes)) nodes.forEach(n => b.appendChild(n)); else if (nodes) b.appendChild(nodes);
+          back.classList.add('open');
+        }
+
+        function normalizeDoi(raw){
+          if (!raw) return '';
+          try {
+            let s = String(raw).trim();
+            s = s.replace(/^https?:\/\/(dx\.)?doi\.org\//i,'');
+            s = s.replace(/^doi:\s*/i,'');
+            const full = s.match(/10\.\d{4,9}\/[^\s;]+/i);
+            const core = full ? full[0] : ( /^10\.\d{4,9}\/\S+$/i.test(s) ? s : '' );
+            return core ? core.toLowerCase() : '';
+          } catch(_) { return ''; }
+        }
+        function parseReferences(str){
+          const parts = String(str||'').split(';').map(s => normalizeDoi(s)).filter(Boolean);
+          return Array.from(new Set(parts));
+        }
+
+        async function fetchCrossrefTitle(doi){
+          const key = normalizeDoi(doi);
+          if (!key) return null;
+          if (crossrefCache.has(key)) return crossrefCache.get(key);
+          try {
+            const res = await fetch(`https://api.crossref.org/works/${encodeURIComponent(key)}`, { headers: { 'Accept':'application/json' } });
+            if (!res.ok) throw new Error('HTTP '+res.status);
+            const data = await res.json();
+            const msg = data && data.message ? data.message : data;
+            const title = Array.isArray(msg && msg.title) ? (msg.title[0] || key) : (msg && msg.title) || key;
+            crossrefCache.set(key, title);
+            return title;
+          } catch (_) {
+            crossrefCache.set(key, null);
+            return null;
+          }
         }
 
         async function loadAll() {
@@ -643,6 +716,36 @@
             left.appendChild(imgBtn);
           }
 
+          // References button
+          try {
+            const refs = parseReferences(note && note.references);
+            if (refs && refs.length) {
+              const refBtn = document.createElement('button');
+              refBtn.className = 'btn';
+              refBtn.textContent = 'Mostra references';
+              refBtn.addEventListener('click', async (e) => {
+                e.stopPropagation();
+                const nodes = [];
+                for (const r of refs) {
+                  const row = document.createElement('div'); row.className='ref-row';
+                  const title = await fetchCrossrefTitle(r);
+                  const t = document.createElement('div'); t.textContent = title || r; row.appendChild(t);
+                  const d = document.createElement('div'); d.className='muted'; d.textContent = r; row.appendChild(d);
+                  const actions = document.createElement('div'); actions.style.display='flex'; actions.style.gap='8px'; actions.style.marginTop='4px';
+                  const a1 = Object.assign(document.createElement('a'), { href:`https://doi.org/${encodeURIComponent(r)}`, target:'_blank', rel:'noopener noreferrer', textContent:'Apri DOI' }); actions.appendChild(a1);
+                  const internalKey = doiIndex.get(normalizeDoi(r));
+                  if (internalKey) {
+                    const a2 = Object.assign(document.createElement('a'), { href:`details.html?doi=${encodeURIComponent(internalKey)}`, textContent:'Apri in sistema' }); actions.appendChild(a2);
+                  }
+                  row.appendChild(actions);
+                  nodes.push(row);
+                }
+                openOverlay('References', nodes);
+              });
+              left.appendChild(refBtn);
+            }
+          } catch (_) {}
+
           const editBtn = document.createElement('button');
           editBtn.className = 'btn';
           editBtn.textContent = 'Modifica';
@@ -743,6 +846,24 @@
             }
             if (changed) saveTypeColors(map);
           } catch (_) {}
+
+          // Build DOI index and cited-by map
+          doiIndex = new Map();
+          Object.keys(db).forEach(key => { const norm = normalizeDoi(key); if (norm) doiIndex.set(norm, key); });
+          const citedBy = new Map(); // normTarget -> Set(normCiting)
+          for (const citeDoi of dois) {
+            const entry = db[citeDoi] || {};
+            const notes = Array.isArray(entry.user_notes) ? entry.user_notes : (entry.user_note ? [entry.user_note] : []);
+            for (const n of notes) {
+              const refs = parseReferences(n && n.references);
+              for (const r of refs) {
+                const set = citedBy.get(r) || new Set();
+                const normCiting = normalizeDoi(citeDoi) || citeDoi;
+                set.add(normCiting);
+                citedBy.set(r, set);
+              }
+            }
+          }
 
           // Ordina le sezioni per titolo (fallback DOI)
           const sections = dois.map(doi => {
@@ -857,6 +978,34 @@
 
               actions.appendChild(searchDoiBtn);
               actions.appendChild(copyDoiBtn);
+              // Cited by (if any)
+              try {
+                const normSelf = normalizeDoi(doi);
+                const set = normSelf ? (citedBy.get(normSelf) || new Set()) : new Set();
+                const countCited = set.size;
+                if (countCited > 0) {
+                  const cbBtn = document.createElement('button');
+                  cbBtn.className = 'btn';
+                  cbBtn.textContent = `Cited by (${countCited})`;
+                  cbBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    const nodes = [];
+                    const list = Array.from(set);
+                    list.forEach(normCiting => {
+                      const key = doiIndex.get(normCiting) || normCiting;
+                      const ent = db[key];
+                      const t = getTitle(ent) || key;
+                      const row = document.createElement('div'); row.className='ref-row';
+                      const d1 = document.createElement('div'); d1.textContent = t; row.appendChild(d1);
+                      const d2 = document.createElement('div'); d2.className='muted'; d2.textContent = key; row.appendChild(d2);
+                      const a = Object.assign(document.createElement('a'), { href:`details.html?doi=${encodeURIComponent(key)}`, textContent:'Apri' }); row.appendChild(a);
+                      nodes.push(row);
+                    });
+                    openOverlay('Articoli che citano questo DOI', nodes);
+                  });
+                  actions.appendChild(cbBtn);
+                }
+              } catch (_) {}
               const addNoteBtn = document.createElement('button');
               addNoteBtn.className = 'btn';
               addNoteBtn.textContent = 'Aggiungi nota';

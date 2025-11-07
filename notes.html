@@ -105,6 +105,12 @@
       </div>
 
       <div class="row">
+        <label for="referencesInput">References (DOI; separati da ;)</label>
+        <input id="referencesInput" type="text" placeholder="es. 10.1038/nphys1170; 10.1016/j.ecolmodel.2018.01.012" />
+        <div class="sub">Suggerimento formato: 10.xxxx/..... Accetta anche https://doi.org/... o doi:...</div>
+      </div>
+
+      <div class="row">
         <label for="commentInput">Commento</label>
         <textarea id="commentInput" rows="2" placeholder="Commento aggiuntivo..."></textarea>
       </div>
@@ -155,6 +161,7 @@
         const imageUrlInput = document.getElementById('imageUrlInput');
         const animalsInput = document.getElementById('animalsInput');
         const commentInput = document.getElementById('commentInput');
+        const referencesInput = document.getElementById('referencesInput');
         const noteText = document.getElementById('noteText');
         const extractToggle = document.getElementById('extractToggle');
         // Glossario (multi-rows)
@@ -260,6 +267,24 @@
           const n = parseInt(v, 10);
           if (isNaN(n)) return 1;
           return Math.max(1, Math.min(10, n));
+        }
+
+        function normalizeDoi(raw){
+          if (!raw) return '';
+          try {
+            let s = String(raw).trim();
+            s = s.replace(/^https?:\/\/(dx\.)?doi\.org\//i,'');
+            s = s.replace(/^doi:\s*/i,'');
+            const full = s.match(/10\.\d{4,9}\/[^\s;]+/i);
+            const core = full ? full[0] : ( /^10\.\d{4,9}\/\S+$/i.test(s) ? s : '' );
+            return core ? core.toLowerCase() : '';
+          } catch(_) { return ''; }
+        }
+
+        function prepareReferencesString(input){
+          const parts = String(input||'').split(';').map(x=>normalizeDoi(x)).filter(Boolean);
+          const uniq = Array.from(new Set(parts));
+          return uniq.join('; ');
         }
 
         function importanceToColor(val){
@@ -472,6 +497,7 @@
           imageUrlInput.value = n.imageUrl || '';
           animalsInput.value = Array.isArray(n.animals) ? n.animals.join(', ') : (n.animals || '');
           commentInput.value = n.comment || '';
+          referencesInput.value = n.references || '';
           const imp = clampImportanza(n.importanza == null ? 1 : n.importanza);
           importanceRange.value = imp;
           importanceNumber.value = imp;
@@ -532,6 +558,7 @@
                 imageUrl: (imageUrlInput.value || '').trim() || null,
                 comment: (commentInput.value || '').trim() || null,
                 animals: splitCsv(animalsInput.value),
+                references: prepareReferencesString(referencesInput.value || ''),
                 importanza: clampImportanza(importanceRange.value || importanceNumber.value || 1),
                 createdAt: (editingNote && editingNote.createdAt) || now,
               },
