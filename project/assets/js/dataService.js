@@ -48,7 +48,7 @@
 
   async function saveRecord(doi, record) {
     const payload = normalizeRecordForSave(doi, record);
-    dlog('SAVE start', payload.DOI, { notes: !!payload.user_notes, dettagli: !!payload.dettagli, vars: !!payload.dati_variabili });
+    dlog('SAVE start', payload.DOI, { notes: !!payload.user_notes, dettagli: !!payload.dettagli, vars: !!payload.dati_variabili, cartella: (typeof payload.cartella === 'string') ? payload.cartella : undefined });
 
     // Prefer POST form-urlencoded first (simple request, evita preflight CORS)
     try {

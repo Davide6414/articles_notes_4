@@ -93,7 +93,7 @@ function doPost(e) {
       const doi = body.doi || (body.record && body.record.DOI) || body.record?.doi || '';
       const record = body.record || null;
       if (!doi || !record) return badRequest_('missing doi or record');
-      dbg_('doPost save', { doi: doi, hasNotes: !!record.user_notes, hasDettagli: !!record.dettagli, hasVars: !!record.dati_variabili });
+      dbg_('doPost save', { doi: doi, hasNotes: !!record.user_notes, hasDettagli: !!record.dettagli, hasVars: !!record.dati_variabili, hasCartella: Object.prototype.hasOwnProperty.call(record, 'cartella'), cartella: record && record.cartella });
       upsertRecord_(doi, record);
       return json_({ ok: true, saved: doi });
     }
@@ -205,9 +205,21 @@ function upsertRecord_(doi, record) {
   const lock = LockService.getScriptLock();
   lock.waitLock(20 * 1000);
   try {
-    dbg_('upsertRecord_', { doi: doi, fields: Object.keys(record || {}) });
+    dbg_('upsertRecord_', { doi: doi, fields: Object.keys(record || {}), hasCartella: Object.prototype.hasOwnProperty.call(record, 'cartella'), cartella: record && record.cartella });
     const db = readDb_();
-    db[String(doi)] = record;
+    const key = String(doi);
+    const existing = (db && db[key]) || {};
+    // Shallow merge to preserve existing fields when not provided in payload
+    const merged = Object.assign({}, existing, record);
+    // Allow explicit clearing of cartella when provided as empty string or null
+    if (Object.prototype.hasOwnProperty.call(record, 'cartella')) {
+      if (record.cartella === '' || record.cartella == null) {
+        delete merged.cartella;
+      } else {
+        merged.cartella = String(record.cartella);
+      }
+    }
+    db[key] = merged;
     writeDb_(db);
   } finally {
     lock.releaseLock();
