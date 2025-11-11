@@ -160,6 +160,13 @@
       .overlay-title { font-size: 16px; margin: 0; }
       .overlay-close { font-size: 14px; padding: 6px 10px; border-radius: 8px; border: 1px solid #e5e7eb; background: #fff; cursor: pointer; }
       .ref-row { display: grid; gap: 2px; padding: 8px; border: 1px solid #e5e7eb; border-radius: 8px; }
+
+      /* Loading overlay */
+      .loading-backdrop { position: fixed; inset:0; background: rgba(0,0,0,0.25); display: none; align-items: center; justify-content: center; z-index: 200; }
+      .loading-backdrop.open { display: flex; }
+      .loading-box { background:#fff; border:1px solid #e5e7eb; border-radius:12px; padding:16px 20px; min-width:260px; display:grid; gap:10px; align-items:center; justify-items:center; box-shadow: 0 20px 50px rgba(0,0,0,0.15); }
+      .spinner { width:28px; height:28px; border:3px solid #e5e7eb; border-top:3px solid var(--brand); border-radius:50%; animation: spin 0.8s linear infinite; }
+      @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
     </style>
   </head>
   <body>
@@ -464,6 +471,22 @@
           if (Array.isArray(nodes)) nodes.forEach(n => b.appendChild(n)); else if (nodes) b.appendChild(nodes);
           back.classList.add('open');
         }
+
+        // Loading overlay helpers
+        function ensureLoadingOverlay(){
+          let back = document.getElementById('loadingBackdrop');
+          if (!back) {
+            back = document.createElement('div'); back.id='loadingBackdrop'; back.className='loading-backdrop';
+            const box = document.createElement('div'); box.className='loading-box'; box.id='loadingBox';
+            const sp = document.createElement('div'); sp.className='spinner'; box.appendChild(sp);
+            const msg = document.createElement('div'); msg.id='loadingLabel'; msg.style.fontSize='14px'; msg.textContent=''; box.appendChild(msg);
+            back.appendChild(box); document.body.appendChild(back);
+          }
+          return back;
+        }
+        function showLoadingOverlay(message){ const back = ensureLoadingOverlay(); const lab = document.getElementById('loadingLabel'); if (lab) lab.textContent = message || 'Caricamento...'; back.classList.add('open'); }
+        function updateLoadingOverlay(message){ const lab = document.getElementById('loadingLabel'); if (lab) lab.textContent = message || ''; }
+        function hideLoadingOverlay(){ try { const back = document.getElementById('loadingBackdrop'); if (back) back.classList.remove('open'); } catch(_){} }
 
         function normalizeDoi(raw){
           if (!raw) return '';
@@ -1076,6 +1099,28 @@
 
           const collapsedMap = loadCollapsed();
 
+          // Build a rainbow-like color map for folders (uniform distribution)
+          function makeFolderColorMap(items){
+            try {
+              const special = 'Senza cartella';
+              const namesAll = Array.from(new Set(items.map(x => x.folder)));
+              const names = namesAll.filter(n => String(n||'').toLowerCase() !== special.toLowerCase())
+                                    .sort((a,b)=> a.localeCompare(b, undefined, {sensitivity:'base'}));
+              const map = new Map();
+              // Neutral default for special
+              map.set(special, { border: '#d1d5db', bg: '#f3f4f6' });
+              const n = Math.max(1, names.length);
+              names.forEach((name, i) => {
+                const hue = Math.round((i * 360) / n);
+                const border = `hsl(${hue} 75% 42%)`;
+                const bg = `hsl(${hue} 85% 95%)`;
+                map.set(name, { border, bg });
+              });
+              return map;
+            } catch (_) { return new Map(); }
+          }
+          const folderColorMap = makeFolderColorMap(sections);
+
           // If grouping by folder, render grouped view with persistent folder collapsing and exit early
           if (groupByFolder) {
             const foldersCollapsed = loadFoldersCollapsed();
@@ -1095,7 +1140,10 @@
               const header = document.createElement('div'); header.className = 'section-header';
               const btn = document.createElement('button'); btn.className = 'collapse-btn';
               const collapsed = !!collapsedMap[doi]; btn.setAttribute('aria-expanded', String(!collapsed)); btn.textContent = collapsed ? '>' : 'v'; header.appendChild(btn);
-              const icon = document.createElement('div'); icon.className = 'article-icon'; icon.textContent = '??';
+            const icon = document.createElement('div'); icon.className = 'article-icon'; icon.textContent = '??';
+            try { const fc = folderColorMap.get(folder) || folderColorMap.get('Senza cartella'); if (fc){ icon.style.borderColor = fc.border; icon.style.background = fc.bg; } } catch(_){}
+              // Color by folder
+              try { const fname = folderLabelOf(entry); const fc = folderColorMap.get(fname) || folderColorMap.get('Senza cartella'); if (fc){ icon.style.borderColor = fc.border; icon.style.background = fc.bg; } } catch(_){}
               const caption = document.createElement('div'); caption.className = 'article-caption'; caption.textContent = title;
               function applyHeaderLayout() {
                 header.innerHTML = ''; header.appendChild(btn);
@@ -1134,7 +1182,7 @@
                     const actions=document.createElement('div'); actions.style.display='flex'; actions.style.gap='8px'; const saveB=Object.assign(document.createElement('button'), { className:'btn primary', type:'button', textContent:'Salva' }); const clearB=Object.assign(document.createElement('button'), { className:'btn', type:'button', textContent:'Rimuovi' }); const cancelB=Object.assign(document.createElement('button'), { className:'btn', type:'button', textContent:'Annulla' }); actions.appendChild(saveB); actions.appendChild(clearB); actions.appendChild(cancelB); nodes.push(actions); openOverlay('Assegna cartella', nodes);
                     const closeOverlay = ()=>{ try{ const back=document.getElementById('overlayBackdrop'); if (back) back.classList.remove('open'); } catch(_){} };
                     clearB.addEventListener('click', ()=> { inp.value=''; inp.focus(); }); cancelB.addEventListener('click', closeOverlay); inp.addEventListener('keydown', (ev)=>{ if (ev.key==='Enter') saveB.click(); });
-                    saveB.addEventListener('click', async ()=>{ const folder=String(inp.value||'').trim(); const combined=Object.assign({}, base); if (folder){ combined.cartella=folder; setLastFolder(folder); } else { delete combined.cartella; } const tid = window.Toast ? Toast.loading('Salvataggio cartella...') : null; try { await DataService.saveRecord(doi, combined); if (tid && Toast.update) { Toast.update(tid, 'Cartella salvata', 'success'); setTimeout(()=>Toast.dismiss(tid), 600); } db[doi] = combined; renderNotes(); closeOverlay(); } catch(err){ console.error('Assegna cartella fallito', err); Toast&&Toast.error&&Toast.error('Errore salvataggio cartella'); alert('Errore durante il salvataggio'); } });
+                    saveB.addEventListener('click', async ()=>{ const folder=String(inp.value||'').trim(); const combined=Object.assign({}, base); if (folder){ combined.cartella=folder; setLastFolder(folder); } else { delete combined.cartella; } showLoadingOverlay('Salvataggio cartella...'); try { await DataService.saveRecord(doi, combined); db[doi] = combined; renderNotes(); closeOverlay(); updateLoadingOverlay('Cartella salvata e lista aggiornata'); setTimeout(()=> hideLoadingOverlay(), 700); } catch(err){ console.error('Assegna cartella fallito', err); hideLoadingOverlay(); Toast&&Toast.error&&Toast.error('Errore salvataggio cartella'); alert('Errore durante il salvataggio'); } });
                   } catch (e) { console.error('Assegna cartella init fallito', e); Toast&&Toast.error&&Toast.error('Errore apertura dialog cartella'); }
                 });
                 actions.appendChild(addNoteBtn); actions.appendChild(assignFolderBtn); actions.appendChild(varsBtn);
@@ -1252,6 +1300,8 @@
             // Add icon + caption for collapsed view
             const icon = document.createElement('div'); icon.className = 'article-icon'; icon.textContent = '📄';
             const caption = document.createElement('div'); caption.className = 'article-caption';
+            // Color by folder
+            try { const fc = folderColorMap.get(folder) || folderColorMap.get('Senza cartella'); if (fc){ icon.style.borderColor = fc.border; icon.style.background = fc.bg; } } catch(_){}
             // Short caption without count
             caption.textContent = title;
             // Populate header based on state later
@@ -1407,15 +1457,17 @@
                     const folder = String(inp.value || '').trim();
                     const combined = Object.assign({}, base);
                     if (folder) { combined.cartella = folder; setLastFolder(folder); } else { delete combined.cartella; }
-                    const tid = window.Toast ? Toast.loading('Salvataggio cartella...') : null;
+                    showLoadingOverlay('Salvataggio cartella...');
                     try {
                       await DataService.saveRecord(doi, combined);
-                      if (tid && Toast.update) { Toast.update(tid, 'Cartella salvata', 'success'); setTimeout(()=>Toast.dismiss(tid), 600); }
                       db[doi] = combined; // update local cache
                       renderNotes();
                       closeOverlay();
+                      updateLoadingOverlay('Cartella salvata e lista aggiornata');
+                      setTimeout(() => hideLoadingOverlay(), 700);
                     } catch (err) {
                       console.error('Assegna cartella fallito', err);
+                      hideLoadingOverlay();
                       if (window.Toast && Toast.error) Toast.error('Errore salvataggio cartella');
                       alert('Errore durante il salvataggio');
                     }
