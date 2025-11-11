@@ -169,6 +169,15 @@
       /* Tooltip for article background */
       .article-tooltip { position: fixed; pointer-events: none; display: none; max-width: 480px; max-height: 40vh; overflow: auto; white-space: pre-wrap; font-size: 13px; line-height: 1.35; background: #ffffff; color: #0f172a; border: 1px solid #e5e7eb; border-radius: 10px; box-shadow: 0 10px 30px rgba(0,0,0,0.15); padding: 10px 12px; z-index: 300; }
       @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+
+      /* Desktop-like folder tiles */
+      .folders-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 14px; align-items: start; margin-bottom: 16px; }
+      .folder-tile { display: grid; gap: 8px; justify-items: center; padding: 12px; border: 1px solid var(--border-color); border-radius: 12px; background: var(--surface); cursor: pointer; transition: transform 0.08s ease, background 0.15s ease; }
+      .folder-tile:hover { transform: translateY(-1px); background: #f8fafc; }
+      .folder-icon { position: relative; width: 86px; height: 60px; border-radius: 10px; border: 1px solid #cbd5e1; background: #e2e8f0; box-shadow: inset 0 1px 0 rgba(255,255,255,0.6); }
+      .folder-tab { position: absolute; top: -8px; left: 12px; width: 36px; height: 14px; border-radius: 6px 6px 0 0; border: 1px solid #cbd5e1; background: #e2e8f0; box-shadow: inset 0 1px 0 rgba(255,255,255,0.6); }
+      .folder-caption { text-align: center; font-size: 13px; }
+      .folder-caption .count { color: #64748b; font-size: 12px; }
     </style>
   </head>
   <body>
@@ -1271,11 +1280,15 @@
               return section;
             }
 
-            // Build groups only with visible articles
+            // Build groups only with visible articles (store descriptors, not nodes)
             const groups = new Map();
             sections.forEach(it => {
+              // Reuse builder to know visibility; create nodes later on demand
               const el = buildArticleSection(it.doi, it.entry, it.title);
-              if (!el) return; const arr = groups.get(it.folder) || []; arr.push({ node: el, sortKey: it.title }); groups.set(it.folder, arr);
+              if (!el) return;
+              const arr = groups.get(it.folder) || [];
+              arr.push({ doi: it.doi, entry: it.entry, title: it.title, sortKey: it.title });
+              groups.set(it.folder, arr);
             });
             const names = Array.from(groups.keys()).sort((a,b)=>{
               if (orderByColor) {
@@ -1289,23 +1302,42 @@
             });
             if (names.length === 0) {
               const empty = document.createElement('div'); empty.textContent = 'Nessun risultato con i filtri correnti.'; empty.style.color = '#6b7280'; empty.style.fontSize = '14px'; notesContainer.appendChild(empty);
-            } else {
-              names.forEach(folder => {
-                const list = groups.get(folder) || []; list.sort((a,b)=> a.sortKey.localeCompare(b.sortKey, undefined, {sensitivity:'base'}));
-                const fSection = document.createElement('section'); fSection.className = 'notes-section';
-                const fHeader = document.createElement('div'); fHeader.className = 'section-header';
-                const fBtn = document.createElement('button'); fBtn.className = 'collapse-btn';
-                const isCollapsed = !!foldersCollapsed[folder]; fBtn.textContent = isCollapsed ? '>' : 'v'; fBtn.setAttribute('aria-expanded', String(!isCollapsed));
-                const fTitle = document.createElement('h2'); fTitle.className = 'section-title'; fTitle.textContent = `Cartella: ${folder}`;
-                fHeader.appendChild(fBtn); fHeader.appendChild(fTitle); fSection.appendChild(fHeader);
-                const body = document.createElement('div'); body.style.display = isCollapsed ? 'none' : '';
-                list.forEach(it => body.appendChild(it.node)); fSection.appendChild(body);
-                const toggleFolder = ()=>{ const hidden = body.style.display !== 'none' ? true : false; body.style.display = hidden ? 'none' : ''; fBtn.textContent = hidden ? '>' : 'v'; fBtn.setAttribute('aria-expanded', String(!hidden)); foldersCollapsed[folder] = hidden; saveFoldersCollapsed(foldersCollapsed); };
-                fBtn.addEventListener('click', toggleFolder);
-                fTitle.addEventListener('click', toggleFolder);
-                notesContainer.appendChild(fSection);
-              });
+              return;
             }
+
+            // Render folders as desktop-like tiles
+            const tiles = document.createElement('div'); tiles.className = 'folders-grid';
+            const content = document.createElement('div'); content.id = 'folderContents';
+            notesContainer.appendChild(tiles);
+            notesContainer.appendChild(content);
+
+            let selectedFolder = null;
+            function renderFolder(folder){
+              selectedFolder = folder;
+              content.innerHTML = '';
+              const list = (groups.get(folder) || []).slice().sort((a,b)=> a.sortKey.localeCompare(b.sortKey, undefined, {sensitivity:'base'}));
+              // Header for contents
+              const h = document.createElement('div'); h.className='section-header';
+              const title = document.createElement('h2'); title.className='section-title'; title.textContent = `Cartella: ${folder} (${list.length})`;
+              const close = document.createElement('button'); close.className='collapse-btn'; close.textContent='Chiudi';
+              close.addEventListener('click', ()=> { content.innerHTML=''; selectedFolder=null; });
+              h.appendChild(title); h.appendChild(close); content.appendChild(h);
+              // Body
+              list.forEach(it => { const el = buildArticleSection(it.doi, it.entry, it.title); if (el) content.appendChild(el); });
+            }
+
+            names.forEach(folder => {
+              const list = groups.get(folder) || [];
+              const tile = document.createElement('div'); tile.className = 'folder-tile'; tile.setAttribute('data-folder', folder);
+              const icon = document.createElement('div'); icon.className = 'folder-icon';
+              const tab = document.createElement('div'); tab.className = 'folder-tab'; icon.appendChild(tab);
+              // colorize
+              try { const fc = folderColorMap.get(folder) || folderColorMap.get('Senza cartella'); if (fc){ icon.style.borderColor = fc.border; icon.style.background = fc.bg; tab.style.borderColor = fc.border; tab.style.background = fc.bg; } } catch(_){}
+              const cap = document.createElement('div'); cap.className = 'folder-caption'; cap.innerHTML = `${folder}<div class="count">${list.length} articoli</div>`;
+              tile.appendChild(icon); tile.appendChild(cap);
+              tile.addEventListener('click', ()=> renderFolder(folder));
+              tiles.appendChild(tile);
+            });
             return; // done grouped rendering
           }
 

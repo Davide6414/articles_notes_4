@@ -38,6 +38,13 @@
         border: 1px solid #cbd5e1;
         color: #0f172a;
       }
+
+      /* Loading overlay */
+      .loading-backdrop { position: fixed; inset:0; background: rgba(0,0,0,0.25); display: none; align-items: center; justify-content: center; z-index: 200; }
+      .loading-backdrop.open { display: flex; }
+      .loading-box { background:#fff; border:1px solid #e5e7eb; border-radius:12px; padding:16px 20px; min-width:260px; display:grid; gap:10px; align-items:center; justify-items:center; box-shadow: 0 20px 50px rgba(0,0,0,0.15); }
+      .spinner { width:28px; height:28px; border:3px solid #e5e7eb; border-top:3px solid #2563eb; border-radius:50%; animation: spin 0.8s linear infinite; }
+      @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
     </style>
   </head>
   <body>
@@ -566,6 +573,22 @@
         extractToggle.addEventListener('change', applyToggleState);
         tagsInput.addEventListener('input', () => renderFacetChips());
 
+        // Loading overlay helpers (local to this page)
+        function ensureLoadingOverlay(){
+          let back = document.getElementById('loadingBackdrop');
+          if (!back) {
+            back = document.createElement('div'); back.id='loadingBackdrop'; back.className='loading-backdrop';
+            const box = document.createElement('div'); box.className='loading-box'; box.id='loadingBox';
+            const sp = document.createElement('div'); sp.className='spinner'; box.appendChild(sp);
+            const msg = document.createElement('div'); msg.id='loadingLabel'; msg.style.fontSize='14px'; msg.textContent=''; box.appendChild(msg);
+            back.appendChild(box); document.body.appendChild(back);
+          }
+          return back;
+        }
+        function showLoadingOverlay(message){ const back = ensureLoadingOverlay(); const lab = document.getElementById('loadingLabel'); if (lab) lab.textContent = message || 'Salvataggio...'; back.classList.add('open'); }
+        function updateLoadingOverlay(message){ const lab = document.getElementById('loadingLabel'); if (lab) lab.textContent = message || ''; }
+        function hideLoadingOverlay(){ try { const back = document.getElementById('loadingBackdrop'); if (back) back.classList.remove('open'); } catch(_){} }
+
         async function save(){
           const doi = doiSelect.value;
           if (!doi) { alert('Seleziona un DOI'); return; }
@@ -575,6 +598,7 @@
             refreshExtractedText(true);
           }
           try {
+            showLoadingOverlay('Salvataggio nota...');
             const full = await DataService.getAll();
             const base = full[doi] || { DOI: doi };
             const combined = Object.assign({}, base);
@@ -643,11 +667,13 @@
             const tid = Toast ? Toast.loading('Salvataggio nota...') : null;
             await DataService.saveRecord(doi, combined);
             if (tid && Toast.update) { Toast.update(tid, 'Nota salvata', 'success'); setTimeout(()=>Toast.dismiss(tid), 600); }
+            updateLoadingOverlay('Nota salvata. Aggiornamento pagina...');
             window.location.href = 'index.html';
           } catch (e) {
             console.error('Salvataggio nota fallito', e);
             if (Toast && Toast.error) Toast.error('Errore salvataggio nota');
             alert('Errore durante il salvataggio');
+            hideLoadingOverlay();
           }
         }
 
