@@ -624,11 +624,86 @@
 
         saveBtn.addEventListener('click', save);
 
+        // Enhance tags select: show counts and color intensity like index filters
+        function enableMultiClickToggle(selectEl) {
+          if (!selectEl || selectEl.__multiToggleEnabled) return;
+          selectEl.addEventListener('mousedown', (e) => {
+            const t = e.target;
+            if (t && t.tagName === 'OPTION') {
+              e.preventDefault();
+              const keep = selectEl.scrollTop;
+              t.selected = !t.selected;
+              const evt = new Event('change', { bubbles: true });
+              selectEl.dispatchEvent(evt);
+              setTimeout(() => { try { selectEl.scrollTop = keep; } catch (_) {} }, 0);
+            }
+          });
+          selectEl.__multiToggleEnabled = true;
+        }
+        function computeTagsCount(db){
+          const counts = {};
+          try {
+            const dois = Object.keys(db||{});
+            for (const doi of dois){
+              const entry = db[doi] || {};
+              const notes = Array.isArray(entry.user_notes) ? entry.user_notes : (entry.user_note ? [entry.user_note] : []);
+              for (const n of notes){
+                const ts = Array.isArray(n && n.tags) ? n.tags : (n && n.tags ? [String(n.tags)] : []);
+                ts.forEach(t => { const k=String(t); counts[k] = (counts[k]||0)+1; });
+              }
+            }
+          } catch (_) {}
+          return counts;
+        }
+        function populateTagsSelectWithCounts(sel, counts){
+          if (!sel) return;
+          try {
+            const values = Object.keys(counts||{}).sort((a,b)=> a.localeCompare(b, undefined, {sensitivity:'base'}));
+            const max = values.reduce((m,v)=> Math.max(m, counts[v]||0), 0);
+            sel.multiple = true; sel.size = Math.max(10, Math.min(18, values.length));
+            sel.innerHTML = '';
+            for (const v of values){
+              const op = document.createElement('option');
+              op.value = v;
+              op.textContent = `${v} (${counts[v]||0})`;
+              if (max > 0){
+                const t = Math.max(0, Math.min(1, (counts[v]||0)/max));
+                const light = 98 - Math.round(t*40); // 98 -> 58
+                const sat = 85;
+                op.style.background = `hsl(0 ${sat}% ${light}%)`;
+                op.style.color = (light < 75) ? '#fff' : '#7f1d1d';
+              }
+              sel.appendChild(op);
+            }
+          } catch (_) {}
+        }
+        function syncTagsInputFromSelect(){
+          const sel = document.getElementById('tagsSelect');
+          const inp = document.getElementById('tagsInput');
+          if (!sel || !inp) return;
+          const chosen = Array.from(sel.selectedOptions).map(o=>o.value);
+          const manual = (inp.value||'').split(',').map(s=>s.trim()).filter(Boolean);
+          const merged = Array.from(new Set([ ...manual, ...chosen ]));
+          inp.value = merged.join(', ');
+          try { if (typeof renderFacetChips === 'function') renderFacetChips(); } catch(_){}
+        }
+        async function enhanceTagsSelect(){
+          try {
+            const full = await DataService.getAll();
+            const counts = computeTagsCount(full);
+            const sel = document.getElementById('tagsSelect');
+            populateTagsSelectWithCounts(sel, counts);
+            enableMultiClickToggle(sel);
+            sel.addEventListener('change', syncTagsInputFromSelect);
+          } catch (_) {}
+        }
+
         applyToggleState();
         // Init importance controls
         importanceRange.value = 1;
         importanceNumber.value = 1;
         updateImportancePreview();
+        enhanceTagsSelect();
         loadAll();
       })();
     </script>
