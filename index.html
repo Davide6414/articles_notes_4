@@ -1259,20 +1259,60 @@
                   const full = await DataService.getAll();
                   const base = full[doi] || { DOI: doi };
                   const def = (base && base.cartella) || getLastFolder();
-                  const val = window.prompt('Inserisci cartella per questo articolo', def || '');
-                  if (val === null) return;
-                  const folder = String(val).trim();
-                  const combined = Object.assign({}, base);
-                  if (folder) { combined.cartella = folder; setLastFolder(folder); } else { delete combined.cartella; }
-                  const tid = window.Toast ? Toast.loading('Salvataggio cartella...') : null;
-                  await DataService.saveRecord(doi, combined);
-                  if (tid && Toast.update) { Toast.update(tid, 'Cartella salvata', 'success'); setTimeout(()=>Toast.dismiss(tid), 600); }
-                  db[doi] = combined; // update local cache
-                  renderNotes();
+                  // Build existing folders list
+                  const fset = new Set();
+                  try {
+                    Object.keys(full||{}).forEach(k => { const v = String((full[k] && full[k].cartella) || '').trim(); if (v) fset.add(v); });
+                  } catch (_) {}
+                  const folders = Array.from(fset).sort((a,b)=> a.localeCompare(b, undefined, {sensitivity:'base'}));
+
+                  // Build overlay content
+                  const nodes = [];
+                  const row = document.createElement('div'); row.className = 'row';
+                  const lab = document.createElement('label'); lab.textContent = 'Cartella'; row.appendChild(lab);
+                  const inp = Object.assign(document.createElement('input'), { type:'text', id:'folderAssignInput', value: def || '', placeholder:'es. Capitolo 1 / Energia' });
+                  inp.setAttribute('list', 'folderDatalist');
+                  row.appendChild(inp);
+                  const dl = document.createElement('datalist'); dl.id = 'folderDatalist';
+                  folders.forEach(f => { const op = document.createElement('option'); op.value = f; dl.appendChild(op); });
+                  nodes.push(row); nodes.push(dl);
+                  if (folders.length) {
+                    const chips = document.createElement('div'); chips.className = 'chips';
+                    folders.forEach(f => { const c=document.createElement('span'); c.className='chip'; c.textContent=f; c.style.cursor='pointer'; c.addEventListener('click', ()=>{ inp.value = f; }); chips.appendChild(c); });
+                    nodes.push(chips);
+                  }
+                  const actions = document.createElement('div'); actions.style.display='flex'; actions.style.gap='8px';
+                  const saveB = Object.assign(document.createElement('button'), { className:'btn primary', type:'button', textContent:'Salva' });
+                  const clearB = Object.assign(document.createElement('button'), { className:'btn', type:'button', textContent:'Rimuovi' });
+                  const cancelB = Object.assign(document.createElement('button'), { className:'btn', type:'button', textContent:'Annulla' });
+                  actions.appendChild(saveB); actions.appendChild(clearB); actions.appendChild(cancelB);
+                  nodes.push(actions);
+                  openOverlay('Assegna cartella', nodes);
+
+                  const closeOverlay = () => { try { const back = document.getElementById('overlayBackdrop'); if (back) back.classList.remove('open'); } catch(_){} };
+                  clearB.addEventListener('click', ()=> { inp.value = ''; inp.focus(); });
+                  cancelB.addEventListener('click', closeOverlay);
+                  inp.addEventListener('keydown', (ev)=>{ if (ev.key === 'Enter') saveB.click(); });
+                  saveB.addEventListener('click', async () => {
+                    const folder = String(inp.value || '').trim();
+                    const combined = Object.assign({}, base);
+                    if (folder) { combined.cartella = folder; setLastFolder(folder); } else { delete combined.cartella; }
+                    const tid = window.Toast ? Toast.loading('Salvataggio cartella...') : null;
+                    try {
+                      await DataService.saveRecord(doi, combined);
+                      if (tid && Toast.update) { Toast.update(tid, 'Cartella salvata', 'success'); setTimeout(()=>Toast.dismiss(tid), 600); }
+                      db[doi] = combined; // update local cache
+                      renderNotes();
+                      closeOverlay();
+                    } catch (err) {
+                      console.error('Assegna cartella fallito', err);
+                      if (window.Toast && Toast.error) Toast.error('Errore salvataggio cartella');
+                      alert('Errore durante il salvataggio');
+                    }
+                  });
                 } catch (e) {
-                  console.error('Assegna cartella fallito', e);
-                  if (window.Toast && Toast.error) Toast.error('Errore salvataggio cartella');
-                  alert('Errore durante il salvataggio');
+                  console.error('Assegna cartella init fallito', e);
+                  if (window.Toast && Toast.error) Toast.error('Errore apertura dialog cartella');
                 }
               });
               actions.appendChild(addNoteBtn);
