@@ -261,6 +261,9 @@
         const filtersChips = document.getElementById('filtersChips');
         const filtersEl = document.querySelector('section.filters');
         const filtersCollapseBtn = document.getElementById('filtersCollapseBtn');
+        // Inject a toggle button to switch between article view and folder view
+        const filtersHeader = document.querySelector('.filters .filters-header');
+        let groupToggleBtn = null;
         const advDropdown = document.getElementById('advDropdown');
         const advBtn = document.getElementById('advBtn');
         const advMenu = document.getElementById('advMenu');
@@ -282,6 +285,13 @@
         const COLLAPSE_KEY = 'notesCollapsed.v1';
         const FILTERS_COLLAPSE_KEY = 'filtersCollapsed.v1';
         let facets = { types: [], tags: [], animals: [], methods: [] };
+        const GROUP_BY_KEY = 'groupByFolder.v1';
+        const LAST_FOLDER_KEY = 'lastFolderUsed.v1';
+        function loadGroupByFolder(){ try { return localStorage.getItem(GROUP_BY_KEY) === '1'; } catch(_) { return false; } }
+        function saveGroupByFolder(v){ try { localStorage.setItem(GROUP_BY_KEY, v ? '1':'0'); } catch(_){} }
+        function getLastFolder(){ try { return localStorage.getItem(LAST_FOLDER_KEY) || ''; } catch(_) { return ''; } }
+        function setLastFolder(v){ try { if (v) localStorage.setItem(LAST_FOLDER_KEY, v); } catch(_){} }
+        let groupByFolder = loadGroupByFolder();
         let filters = { title: '', types: new Set(), tags: new Set(), animals: new Set(), methods: new Set(), modes: { types: 'OR', tags: 'OR', animals: 'OR', methods: 'OR' } };
 
         // Allow toggling items in <select multiple> with simple click (no Ctrl/Cmd needed)
@@ -562,6 +572,17 @@
         }
 
         function renderFilters() {
+          // Build or update the group toggle button
+          if (filtersHeader && !groupToggleBtn) {
+            groupToggleBtn = document.createElement('button');
+            groupToggleBtn.className = 'btn';
+            groupToggleBtn.id = 'groupByBtn';
+            groupToggleBtn.style.marginLeft = 'auto';
+            groupToggleBtn.addEventListener('click', () => { groupByFolder = !groupByFolder; saveGroupByFolder(groupByFolder); updateGroupToggleLabel(); renderNotes(); });
+            filtersHeader.insertBefore(groupToggleBtn, filtersCollapseBtn);
+          }
+          function updateGroupToggleLabel(){ if (groupToggleBtn) groupToggleBtn.textContent = groupByFolder ? 'Vista: Cartelle' : 'Vista: Articoli'; }
+          updateGroupToggleLabel();
           // Title input
           filterTitleEl.value = filters.title;
           filterTitleEl.oninput = () => { filters.title = (filterTitleEl.value || '').toLowerCase().trim(); renderNotes(); };
@@ -1028,15 +1049,60 @@
           }
 
           // Ordina le sezioni per titolo (fallback DOI)
+          function folderLabelOf(entry){ const s = String((entry && entry.cartella) || '').trim(); return s || 'Senza cartella'; }
           const sections = dois.map(doi => {
             const entry = db[doi] || {};
             const title = getTitle(entry) || doi;
-            return { doi, entry, title };
-          }).sort((a, b) => a.title.localeCompare(b.title, undefined, { sensitivity: 'base' }));
+            const folder = folderLabelOf(entry);
+            return { doi, entry, title, folder };
+          }).sort((a, b) => {
+            if (groupByFolder) {
+              const af = (a.folder || '').toLowerCase();
+              const bf = (b.folder || '').toLowerCase();
+              const az = af === 'senza cartella' ? '' : af;
+              const bz = bf === 'senza cartella' ? '' : bf;
+              const cmpF = az.localeCompare(bz, undefined, { sensitivity: 'base' });
+              if (cmpF !== 0) return cmpF;
+            }
+            return a.title.localeCompare(b.title, undefined, { sensitivity: 'base' });
+          });
 
           const collapsedMap = loadCollapsed();
 
-          for (const { doi, entry, title } of sections) {
+          let currentFolder = null;
+          let groupContainer = notesContainer;
+          for (const item of sections) {
+            const { doi, entry, title, folder } = item;
+            if (groupByFolder) {
+              if (folder !== currentFolder) {
+                currentFolder = folder;
+                const fSection = document.createElement('section');
+                fSection.className = 'notes-section';
+                const fHeader = document.createElement('div');
+                fHeader.className = 'section-header';
+                const fBtn = document.createElement('button');
+                fBtn.className = 'collapse-btn';
+                fBtn.textContent = 'v';
+                fBtn.setAttribute('aria-expanded', 'true');
+                const fTitle = document.createElement('h2');
+                fTitle.className = 'section-title';
+                fTitle.textContent = `Cartella: ${folder}`;
+                fHeader.appendChild(fBtn);
+                fHeader.appendChild(fTitle);
+                fSection.appendChild(fHeader);
+                groupContainer = document.createElement('div');
+                fSection.appendChild(groupContainer);
+                notesContainer.appendChild(fSection);
+                fBtn.addEventListener('click', () => {
+                  const hidden = groupContainer.style.display !== 'none' ? true : false;
+                  groupContainer.style.display = hidden ? 'none' : '';
+                  fBtn.textContent = hidden ? '>' : 'v';
+                  fBtn.setAttribute('aria-expanded', String(!hidden));
+                });
+              }
+            } else {
+              groupContainer = notesContainer;
+            }
             // Filtro testuale: match su titolo o dettagli
             const query = (filters.title || '').toLowerCase();
             const matchesText = !query || title.toLowerCase().includes(query) || detailsText(entry).includes(query);
@@ -1095,6 +1161,13 @@
                 titleEl.addEventListener('click', () => openDetailsFor(doi));
                 titleEl.addEventListener('keydown', (ev) => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); openDetailsFor(doi); } });
                 header.appendChild(titleEl);
+                // Show folder chip if present
+                if (entry && entry.cartella) {
+                  const fchip = document.createElement('span');
+                  fchip.className = 'chip';
+                  fchip.textContent = `Cartella: ${entry.cartella}`;
+                  header.appendChild(fchip);
+                }
               }
               // Actions (add note, variables)
               const actions = document.createElement('div');
@@ -1176,7 +1249,34 @@
               varsBtn.className = 'btn';
               varsBtn.textContent = 'Variabili';
               varsBtn.addEventListener('click', (e) => { e.stopPropagation(); window.location.href = `variabili.html?doi=${encodeURIComponent(doi)}`; });
+              // Assign folder button
+              const assignFolderBtn = document.createElement('button');
+              assignFolderBtn.className = 'btn';
+              assignFolderBtn.textContent = 'Assegna cartella';
+              assignFolderBtn.addEventListener('click', async (e) => {
+                e.stopPropagation();
+                try {
+                  const full = await DataService.getAll();
+                  const base = full[doi] || { DOI: doi };
+                  const def = (base && base.cartella) || getLastFolder();
+                  const val = window.prompt('Inserisci cartella per questo articolo', def || '');
+                  if (val === null) return;
+                  const folder = String(val).trim();
+                  const combined = Object.assign({}, base);
+                  if (folder) { combined.cartella = folder; setLastFolder(folder); } else { delete combined.cartella; }
+                  const tid = window.Toast ? Toast.loading('Salvataggio cartella...') : null;
+                  await DataService.saveRecord(doi, combined);
+                  if (tid && Toast.update) { Toast.update(tid, 'Cartella salvata', 'success'); setTimeout(()=>Toast.dismiss(tid), 600); }
+                  db[doi] = combined; // update local cache
+                  renderNotes();
+                } catch (e) {
+                  console.error('Assegna cartella fallito', e);
+                  if (window.Toast && Toast.error) Toast.error('Errore salvataggio cartella');
+                  alert('Errore durante il salvataggio');
+                }
+              });
               actions.appendChild(addNoteBtn);
+              actions.appendChild(assignFolderBtn);
               actions.appendChild(varsBtn);
               // Show actions only in expanded view to keep tiles compact
               if (!section.classList.contains('collapsed')) {
@@ -1221,7 +1321,7 @@
             });
 
             section.appendChild(grid);
-            notesContainer.appendChild(section);
+            groupContainer.appendChild(section);
           }
         }
 

@@ -57,6 +57,10 @@
             <label for="doiInput">DOI</label>
             <input id="doiInput" type="text" placeholder="es. 10.1038/nphys1170" />
           </div>
+          <div class="row">
+            <label for="folderInputDoi">Cartella (opzionale)</label>
+            <input id="folderInputDoi" type="text" placeholder="es. Capitolo 1 / Energia" />
+          </div>
           <div class="toolbar">
             <button id="searchBtn" class="btn">Cerca</button>
             <div id="status" class="sub"></div>
@@ -67,6 +71,10 @@
           <div class="row">
             <label for="manualTitleInput">Titolo senza DOI</label>
             <input id="manualTitleInput" type="text" placeholder="es. Titolo articolo o libro" />
+          </div>
+          <div class="row">
+            <label for="folderInputManual">Cartella (opzionale)</label>
+            <input id="folderInputManual" type="text" placeholder="es. Capitolo 1 / Energia" />
           </div>
           <div class="toolbar">
             <button id="manualSaveBtn" class="btn">Aggiungi titolo senza DOI</button>
@@ -88,6 +96,8 @@
         const statusEl = document.getElementById('status');
         const manualTitleInput = document.getElementById('manualTitleInput');
         const manualSaveBtn = document.getElementById('manualSaveBtn');
+        const folderInputDoi = document.getElementById('folderInputDoi');
+        const folderInputManual = document.getElementById('folderInputManual');
         const modeButtons = Array.from(document.querySelectorAll('[data-mode]'));
         const doiSection = document.querySelector('[data-section="doi"]');
         const manualSection = document.querySelector('[data-section="manual"]');
@@ -201,7 +211,8 @@
           return {
             DOI: doi,
             title: title,
-            abstract: abstract
+            abstract: abstract,
+            cartella: (folderInputDoi && folderInputDoi.value ? folderInputDoi.value.trim() : undefined)
           };
         }
 
@@ -235,7 +246,8 @@
           return {
             DOI: manualId,
             title: [title],
-            abstract: null
+            abstract: null,
+            cartella: (folderInputManual && folderInputManual.value ? folderInputManual.value.trim() : undefined)
           };
         }
 

@@ -12,6 +12,8 @@
         title: Array.isArray(r.title) ? r.title : (r.title ? [r.title] : []),
         abstract: r.abstract != null ? r.abstract : null,
       };
+      // Preserve custom 'cartella' field if provided
+      if (typeof r.cartella === 'string') out.cartella = r.cartella;
       if (Array.isArray(r.user_notes)) out.user_notes = r.user_notes;
       if (Array.isArray(r.user_glossario)) out.user_glossario = r.user_glossario;
       if (r.dettagli && typeof r.dettagli === 'object') out.dettagli = r.dettagli;
