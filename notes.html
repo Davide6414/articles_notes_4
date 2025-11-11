@@ -358,20 +358,24 @@
         }
 
         function computeFacets(){
-          const types = new Set(); const tags = new Set(); const animals = new Set();
+          const types = new Set();
+          const animals = new Set();
+          const tagDisplay = new Map(); // normalized -> display label
           for (const doi of Object.keys(db)){
             const entry = db[doi];
             const notes = Array.isArray(entry?.user_notes) ? entry.user_notes : (entry?.user_note ? [entry.user_note] : []);
             for (const n of notes){
               if (!n) continue;
               if (n.type) types.add(String(n.type));
-              (Array.isArray(n.tags) ? n.tags : (n.tags ? [String(n.tags)] : [])).forEach(t=>tags.add(String(t)));
+              const ts = Array.isArray(n.tags) ? n.tags : (n.tags ? [String(n.tags)] : []);
+              ts.forEach(t=>{ const disp=String(t).trim(); const k=disp.toLowerCase(); if(!tagDisplay.has(k)) tagDisplay.set(k, disp); });
               (Array.isArray(n.animals) ? n.animals : (n.animals ? [String(n.animals)] : [])).forEach(a=>animals.add(String(a)));
             }
           }
+          const tags = Array.from(tagDisplay.values()).sort((a,b)=>a.localeCompare(b, undefined, {sensitivity:'base'}));
           facets = {
             types: Array.from(types).sort((a,b)=>a.localeCompare(b, undefined, {sensitivity:'base'})),
-            tags: Array.from(tags).sort((a,b)=>a.localeCompare(b, undefined, {sensitivity:'base'})),
+            tags,
             animals: Array.from(animals).sort((a,b)=>a.localeCompare(b, undefined, {sensitivity:'base'})),
           };
         }
@@ -438,8 +442,19 @@
             m.textContent = 'Nessun tag corrispondente';
             tagChips.appendChild(m);
           } else {
+            // alphabetical separators
+            let prevLetter = null;
             list.forEach(t=>{
-              const s=document.createElement('span'); s.className='chip tag'; s.textContent=t;
+              const first = (String(t).trim()[0]||'').toUpperCase();
+              const letter = (first && first >= 'A' && first <= 'Z') ? first : '#';
+              if (letter !== prevLetter) {
+                const sep = document.createElement('span'); sep.className='chip'; sep.textContent = letter; sep.title = `Inizio ${letter}`;
+                tagChips.appendChild(sep);
+                prevLetter = letter;
+              }
+              const s=document.createElement('span'); s.className='chip tag';
+              const cnt = (counts && counts[tagKey(t)]) || 0;
+              s.textContent = `${t} (${cnt})`;
               applyTagChipStyle(s, t, counts, max);
               s.onclick=()=> { addOrReplaceLastCsv(tagsInput, t); renderFacetChips(); };
               tagChips.appendChild(s);
