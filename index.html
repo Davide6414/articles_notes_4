@@ -127,8 +127,13 @@
       .filters-actions { display: flex; justify-content: flex-end; }
       .filters.collapsed .filters-grid { display: none; }
       .dropdown { position: relative; display: inline-block; }
-      .dropdown-menu { position: absolute; z-index: 20; right: 0; margin-top: 6px; min-width: 280px; padding: 10px; border: 1px solid #e5e7eb; border-radius: 10px; background: #fff; box-shadow: 0 10px 30px rgba(0,0,0,0.08); display: none; }
+      .dropdown-menu { position: absolute; z-index: 40; right: 0; margin-top: 6px; min-width: 520px; max-width: 900px; padding: 12px; border: 1px solid #e5e7eb; border-radius: 12px; background: #fff; box-shadow: 0 10px 30px rgba(0,0,0,0.12); display: none; max-height: 70vh; overflow: auto; resize: both; }
       .dropdown.open .dropdown-menu { display: block; }
+      .dropdown-menu.expanded { position: fixed; inset: auto; top: 10vh; left: 50%; transform: translateX(-50%); right: auto; margin-top: 0; width: min(960px, 96vw); max-height: 74vh; }
+      .dropdown-menu .controls-line { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; margin: 4px 0; }
+      .dropdown-menu .controls-line .btn { padding: 4px 8px; font-size: 12px; }
+      .dropdown-menu .search-input { width: 100%; padding: 6px 8px; border: 1px solid #e5e7eb; border-radius: 8px; font-size: 13px; }
+      .dropdown-menu optgroup[hidden] { display: none; }
       .dropdown .row { margin-bottom: 6px; }
       .dropdown select[multiple] { min-height: 100px; }
       .filters-chips { display: flex; flex-wrap: wrap; gap: 6px; }
@@ -494,7 +499,7 @@
 
         function computeFacets() {
           const types = new Set();
-          const tags = new Set();
+          const tagsCount = {}; // tag -> count across notes
           const methods = new Set();
           const animals = new Set();
           for (const doi of Object.keys(db)) {
@@ -503,14 +508,21 @@
             for (const n of notes) {
               if (n && n.type) types.add(n.type);
               const ts = Array.isArray(n?.tags) ? n.tags : (n?.tags ? [String(n.tags)] : []);
-              for (const t of ts) tags.add(t);
+              for (const t of ts) { const key = String(t); tagsCount[key] = (tagsCount[key]||0) + 1; }
               const an = Array.isArray(n?.animals) ? n.animals : (n?.animals ? [String(n.animals)] : []);
               for (const a of an) animals.add(a);
             }
             const mm = entry?.dettagli?.methods;
             (Array.isArray(mm) ? mm : (mm ? [String(mm)] : [])).forEach(m => methods.add(String(m)));
           }
-          facets = { types: Array.from(types).sort((a,b)=>a.localeCompare(b, undefined, {sensitivity:'base'})), tags: Array.from(tags).sort((a,b)=>a.localeCompare(b, undefined, {sensitivity:'base'})), animals: Array.from(animals).sort((a,b)=>a.localeCompare(b, undefined, {sensitivity:'base'})), methods: Array.from(methods).sort((a,b)=>a.localeCompare(b, undefined, {sensitivity:'base'})) };
+          const tags = Object.keys(tagsCount).sort((a,b)=>a.localeCompare(b, undefined, {sensitivity:'base'}));
+          facets = {
+            types: Array.from(types).sort((a,b)=>a.localeCompare(b, undefined, {sensitivity:'base'})),
+            tags,
+            tagsCount,
+            animals: Array.from(animals).sort((a,b)=>a.localeCompare(b, undefined, {sensitivity:'base'})),
+            methods: Array.from(methods).sort((a,b)=>a.localeCompare(b, undefined, {sensitivity:'base'}))
+          };
         }
 
         function renderFilters() {
@@ -519,20 +531,110 @@
           filterTitleEl.oninput = () => { filters.title = (filterTitleEl.value || '').toLowerCase().trim(); renderNotes(); };
 
           // Populate advanced dropdown selects
-          function populateMulti(sel, values, selectedSet){
+          function populateMulti(sel, values, selectedSet, groupAlpha, counts, sortByCount){
             sel.innerHTML = '';
-            for (const v of values){ const op=document.createElement('option'); op.value=v; op.textContent=v; op.selected = selectedSet.has(v); sel.appendChild(op); }
+            const getMax = () => {
+              if (!counts) return 0;
+              let m = 0; for (const v of values){ const c = counts[v]||0; if (c>m) m=c; } return m;
+            };
+            const maxCount = getMax();
+            const labelFor = (v) => counts ? `${v} (${counts[v]||0})` : v;
+            const styleFor = (op, v) => {
+              if (!counts) return;
+              const c = counts[v]||0; if (!c || !maxCount) return;
+              const t = Math.max(0, Math.min(1, c / maxCount));
+              const light = 98 - Math.round(t * 40); // 98 -> 58 (più scuro se frequente)
+              const sat = 85;
+              op.style.background = `hsl(0 ${sat}% ${light}%)`;
+              op.style.color = (light < 75) ? '#fff' : '#7f1d1d';
+            };
+            if (!groupAlpha) {
+              const vals = Array.from(values);
+              if (sortByCount && counts) vals.sort((a,b)=> (counts[b]||0)-(counts[a]||0) || a.localeCompare(b, undefined, {sensitivity:'base'}));
+              for (const v of vals){ const op=document.createElement('option'); op.value=v; op.textContent=labelFor(v); op.selected = selectedSet.has(v); styleFor(op, v); sel.appendChild(op); }
+              return;
+            }
+            // Group by first letter (A–Z), others under '#'
+            const groups = new Map();
+            const letterOf = (s) => {
+              const c = (String(s||'').trim()[0]||'').toUpperCase();
+              return (c && c >= 'A' && c <= 'Z') ? c : '#';
+            };
+            for (const v of values){ const L = letterOf(v); const arr = groups.get(L) || []; arr.push(v); groups.set(L, arr); }
+            const letters = Array.from(groups.keys()).sort((a,b)=>{
+              if (a==='#' && b!=='#') return -1; if (a!=='#' && b==='#') return 1; return a.localeCompare(b);
+            });
+            for (const L of letters){
+              const og = document.createElement('optgroup'); og.label = L;
+              const arr = (groups.get(L) || []).slice();
+              if (sortByCount && counts) arr.sort((a,b)=> (counts[b]||0)-(counts[a]||0) || a.localeCompare(b, undefined, {sensitivity:'base'}));
+              arr.forEach(v => { const op=document.createElement('option'); op.value=v; op.textContent=labelFor(v); op.selected = selectedSet.has(v); styleFor(op, v); og.appendChild(op); });
+              sel.appendChild(og);
+            }
           }
-          populateMulti(typeMulti, facets.types, filters.types);
-          populateMulti(tagsMulti, facets.tags, filters.tags);
-          populateMulti(animalsMulti, facets.animals, filters.animals);
-          populateMulti(methodsMulti, facets.methods, filters.methods);
+          const tagsSortByCount = (localStorage.getItem('tagsSortByCount.v1') === '1');
+          populateMulti(typeMulti, facets.types, filters.types, false, null, false);
+          populateMulti(tagsMulti, facets.tags, filters.tags, true, facets.tagsCount || null, tagsSortByCount);
+          populateMulti(animalsMulti, facets.animals, filters.animals, false, null, false);
+          populateMulti(methodsMulti, facets.methods, filters.methods, false, null, false);
 
           // Enable simple click toggling for all multi-selects
           enableMultiClickToggle(typeMulti);
           enableMultiClickToggle(tagsMulti);
           enableMultiClickToggle(animalsMulti);
           enableMultiClickToggle(methodsMulti);
+
+          // Enlarge lists for usability
+          typeMulti.size = 8; tagsMulti.size = 14; animalsMulti.size = 8; methodsMulti.size = 8;
+
+          // Helpers: search + select all/none/invert
+          function addSelectHelpers(sel, keyPrefix, supportSort){
+            const row = sel.closest('.row') || sel.parentElement;
+            if (!row) return;
+            // Search box
+            let search = row.querySelector(`input[data-for='${sel.id}']`);
+            if (!search) {
+              search = document.createElement('input'); search.type='search'; search.placeholder='Filtra...'; search.className='search-input'; search.setAttribute('data-for', sel.id);
+              row.insertBefore(search, sel);
+            }
+            const applyFilter = () => {
+              const q = (search.value||'').toLowerCase().trim();
+              // show/hide options and hide empty optgroups
+              const opts = Array.from(sel.options);
+              const visibleMap = new Map();
+              opts.forEach(op => {
+                const txt = (op.textContent||'').toLowerCase();
+                const vis = !q || txt.includes(q);
+                op.hidden = !vis;
+                const og = op.parentElement && op.parentElement.tagName === 'OPTGROUP' ? op.parentElement : null;
+                if (og) visibleMap.set(og, (visibleMap.get(og)||0) + (vis?1:0));
+              });
+              // toggle optgroups
+              Array.from(sel.querySelectorAll('optgroup')).forEach(og => { const v = visibleMap.get(og)||0; og.hidden = (v === 0); });
+            };
+            search.oninput = applyFilter;
+
+            // Controls line
+            let line = row.querySelector(`.controls-line[data-for='${sel.id}']`);
+            if (!line) { line = document.createElement('div'); line.className='controls-line'; line.setAttribute('data-for', sel.id); row.appendChild(line); }
+            const mkBtn = (txt, fn) => { const b=document.createElement('button'); b.type='button'; b.className='btn'; b.textContent=txt; b.addEventListener('click', fn); return b; };
+            line.innerHTML = '';
+            line.appendChild(mkBtn('Seleziona tutto', ()=>{ Array.from(sel.options).forEach(o=>{ if(!o.hidden) o.selected=true; }); sel.dispatchEvent(new Event('change',{bubbles:true})); }));
+            line.appendChild(mkBtn('Nessuno', ()=>{ Array.from(sel.options).forEach(o=>{ if(!o.hidden) o.selected=false; }); sel.dispatchEvent(new Event('change',{bubbles:true})); }));
+            line.appendChild(mkBtn('Inverti', ()=>{ Array.from(sel.options).forEach(o=>{ if(!o.hidden) o.selected=!o.selected; }); sel.dispatchEvent(new Event('change',{bubbles:true})); }));
+            if (supportSort) {
+              const sortBtn = mkBtn(tagsSortByCount ? 'Ordina A→Z' : 'Ordina per frequenza', ()=>{
+                const next = !tagsSortByCount; localStorage.setItem('tagsSortByCount.v1', next ? '1':'0'); renderFilters();
+              });
+              line.appendChild(sortBtn);
+            }
+            // First application of filter
+            applyFilter();
+          }
+          addSelectHelpers(typeMulti, 'types', false);
+          addSelectHelpers(tagsMulti, 'tags', true);
+          addSelectHelpers(animalsMulti, 'animals', false);
+          addSelectHelpers(methodsMulti, 'methods', false);
 
           applyAdv.onclick = () => {
             filters.types = new Set(Array.from(typeMulti.selectedOptions).map(o=>o.value));
@@ -566,8 +668,21 @@
             advBtn.textContent = cnt ? `Seleziona... (${cnt})` : 'Seleziona...';
           }
           updateAdvBtnLabel();
-          advBtn.onclick = (e) => { e.stopPropagation(); advDropdown.classList.toggle('open'); };
+          // Top controls: expand/close
+          function ensureTopControls(){
+            let top = advMenu.querySelector('.controls-line.top');
+            if (!top) { top = document.createElement('div'); top.className='controls-line top'; advMenu.insertBefore(top, advMenu.firstChild); }
+            top.innerHTML='';
+            const mkBtn = (txt, fn) => { const b=document.createElement('button'); b.type='button'; b.className='btn'; b.textContent=txt; b.addEventListener('click', fn); return b; };
+            const expanded = advMenu.classList.contains('expanded');
+            top.appendChild(mkBtn(expanded ? 'Riduci' : 'Espandi', ()=>{ advMenu.classList.toggle('expanded'); }));
+            top.appendChild(mkBtn('Chiudi', ()=>{ advDropdown.classList.remove('open'); advMenu.classList.remove('expanded'); }));
+          }
+          ensureTopControls();
+
+          advBtn.onclick = (e) => { e.stopPropagation(); advDropdown.classList.toggle('open'); ensureTopControls(); };
           document.addEventListener('click', (e) => { if (!advDropdown.contains(e.target)) advDropdown.classList.remove('open'); });
+          document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { advDropdown.classList.remove('open'); advMenu.classList.remove('expanded'); } });
 
           // Collapsible filters handling
           const collapsed = loadFiltersCollapsed();
