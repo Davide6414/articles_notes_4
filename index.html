@@ -499,7 +499,9 @@
 
         function computeFacets() {
           const types = new Set();
-          const tagsCount = {}; // tag -> count across notes
+          // Case-insensitive tag counting with display mapping
+          const tagsCountNorm = {}; // normalized tag -> count across notes
+          const tagDisplay = new Map(); // normalized -> first-seen display value
           const methods = new Set();
           const animals = new Set();
           for (const doi of Object.keys(db)) {
@@ -508,21 +510,49 @@
             for (const n of notes) {
               if (n && n.type) types.add(n.type);
               const ts = Array.isArray(n?.tags) ? n.tags : (n?.tags ? [String(n.tags)] : []);
-              for (const t of ts) { const key = String(t); tagsCount[key] = (tagsCount[key]||0) + 1; }
+              for (const t of ts) {
+                const disp = String(t).trim();
+                const key = disp.toLowerCase();
+                tagsCountNorm[key] = (tagsCountNorm[key]||0) + 1;
+                if (!tagDisplay.has(key)) tagDisplay.set(key, disp);
+              }
               const an = Array.isArray(n?.animals) ? n.animals : (n?.animals ? [String(n.animals)] : []);
               for (const a of an) animals.add(a);
             }
             const mm = entry?.dettagli?.methods;
             (Array.isArray(mm) ? mm : (mm ? [String(mm)] : [])).forEach(m => methods.add(String(m)));
           }
-          const tags = Object.keys(tagsCount).sort((a,b)=>a.localeCompare(b, undefined, {sensitivity:'base'}));
+          // Build display list and counts keyed by display label
+          const tags = Array.from(tagDisplay.values()).sort((a,b)=>a.localeCompare(b, undefined, {sensitivity:'base'}));
+          const tagsCountDisplay = {};
+          let tagsMaxCount = 0;
+          for (const [k, disp] of tagDisplay.entries()) {
+            const c = tagsCountNorm[k] || 0; tagsCountDisplay[disp] = c; if (c > tagsMaxCount) tagsMaxCount = c;
+          }
           facets = {
             types: Array.from(types).sort((a,b)=>a.localeCompare(b, undefined, {sensitivity:'base'})),
             tags,
-            tagsCount,
+            tagsCount: tagsCountDisplay,
+            tagsCountNorm: tagsCountNorm,
+            tagsMaxCount: tagsMaxCount,
             animals: Array.from(animals).sort((a,b)=>a.localeCompare(b, undefined, {sensitivity:'base'})),
             methods: Array.from(methods).sort((a,b)=>a.localeCompare(b, undefined, {sensitivity:'base'}))
           };
+        }
+
+        function tagKey(s){ return String(s||'').trim().toLowerCase(); }
+        function applyTagChipStyle(el, tag){
+          try {
+            const key = tagKey(tag);
+            const count = (facets && facets.tagsCountNorm) ? (facets.tagsCountNorm[key]||0) : 0;
+            const max = (facets && facets.tagsMaxCount) ? facets.tagsMaxCount : 0;
+            if (!max) return;
+            const t = Math.max(0, Math.min(1, count / max));
+            const light = 98 - Math.round(t * 40);
+            const sat = 85;
+            el.style.background = `hsl(0 ${sat}% ${light}%)`;
+            el.style.color = (light < 75) ? '#fff' : '#7f1d1d';
+          } catch (_) {}
         }
 
         function renderFilters() {
@@ -790,6 +820,7 @@
               const c = document.createElement('span');
               c.className = 'chip tag';
               c.textContent = t;
+              applyTagChipStyle(c, t);
               chips.appendChild(c);
             }
             card.appendChild(chips);
@@ -895,15 +926,17 @@
               if (!note.type || !filters.types.has(note.type)) return false;
             }
           }
-          // tags filter (OR/AND tra selezioni)
+          // tags filter (OR/AND tra selezioni) - case-insensitive
           if (filters.tags.size) {
-            const tags = Array.isArray(note.tags) ? note.tags : (note.tags ? [String(note.tags)] : []);
+            const tagsRaw = Array.isArray(note.tags) ? note.tags : (note.tags ? [String(note.tags)] : []);
+            const tags = tagsRaw.map(t => tagKey(t));
+            const selected = new Set(Array.from(filters.tags).map(t => tagKey(t)));
             const mode = (filters.modes && filters.modes.tags) || 'OR';
             if (mode === 'OR') {
-              const hit = tags.some(t => filters.tags.has(t));
+              const hit = tags.some(t => selected.has(t));
               if (!hit) return false;
             } else {
-              for (const t of Array.from(filters.tags)) { if (!tags.includes(t)) return false; }
+              for (const t of Array.from(selected)) { if (!tags.includes(t)) return false; }
             }
           }
           // animals filter (OR/AND tra selezioni) per nota

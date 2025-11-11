@@ -68,7 +68,6 @@
         <div class="row">
           <label for="tagsInput">Tag (separati da virgola)</label>
           <input id="tagsInput" type="text" placeholder="es. energy, ecology, hydropower" />
-          <select id="tagsSelect"></select>
           <div id="tagChips" class="chips" style="margin-top:6px;"></div>
         </div>
         <div class="row">
@@ -210,7 +209,6 @@
         const typeChips = document.getElementById('typeChips');
         const tagChips = document.getElementById('tagChips');
         const animalChips = document.getElementById('animalChips');
-        const tagsSelect = document.getElementById('tagsSelect');
         const animalsSelect = document.getElementById('animalsSelect');
 
         const params = new URLSearchParams(location.search);
@@ -378,6 +376,19 @@
           };
         }
 
+        function tagKey(s){ return String(s||'').trim().toLowerCase(); }
+        function applyTagChipStyle(el, tag, counts, max){
+          try {
+            const c = (counts && counts[tagKey(tag)]) || 0;
+            if (!max) return;
+            const t = Math.max(0, Math.min(1, c / max));
+            const light = 98 - Math.round(t * 40); // 98 -> 58 (più scuro se frequente)
+            const sat = 85;
+            el.style.background = `hsl(0 ${sat}% ${light}%)`;
+            el.style.color = (light < 75) ? '#fff' : '#7f1d1d';
+          } catch (_) {}
+        }
+
         function appendCsv(inputEl, value){
           const cur = (inputEl.value||'');
           const list = cur ? cur.split(',').map(s=>s.trim()).filter(Boolean) : [];
@@ -410,6 +421,8 @@
         }
 
         function renderFacetChips(){
+          const counts = computeTagsCount(db);
+          const max = (()=>{ try { return Object.values(counts||{}).reduce((m,v)=>Math.max(m, v||0), 0); } catch(_) { return 0; } })();
           // Types (no filtering)
           typeChips.innerHTML = '';
           facets.types.forEach(t=>{ const s=document.createElement('span'); s.className='chip'; s.textContent=t; s.onclick=()=>{ typeInput.value = t; }; typeChips.appendChild(s); });
@@ -427,6 +440,7 @@
           } else {
             list.forEach(t=>{
               const s=document.createElement('span'); s.className='chip tag'; s.textContent=t;
+              applyTagChipStyle(s, t, counts, max);
               s.onclick=()=> { addOrReplaceLastCsv(tagsInput, t); renderFacetChips(); };
               tagChips.appendChild(s);
             });
@@ -447,15 +461,9 @@
         }
 
         function renderFacetSelects(){
-          // Tags select (appende al campo, poi resetta)
-          tagsSelect.innerHTML = '';
-          const optEmptyT = document.createElement('option'); optEmptyT.value=''; optEmptyT.textContent='— Aggiungi tag —'; tagsSelect.appendChild(optEmptyT);
-          facets.tags.forEach(t=>{ const op=document.createElement('option'); op.value=t; op.textContent=t; tagsSelect.appendChild(op); });
-          tagsSelect.onchange = () => { if (tagsSelect.value) { addOrReplaceLastCsv(tagsInput, tagsSelect.value); tagsSelect.value = ''; renderFacetChips(); } };
-
           // Animals select (appende al campo, poi resetta)
           animalsSelect.innerHTML = '';
-          const optEmptyA = document.createElement('option'); optEmptyA.value=''; optEmptyA.textContent='— Aggiungi animale —'; animalsSelect.appendChild(optEmptyA);
+          const optEmptyA = document.createElement('option'); optEmptyA.value=''; optEmptyA.textContent='- Aggiungi animale -'; animalsSelect.appendChild(optEmptyA);
           facets.animals.forEach(a=>{ const op=document.createElement('option'); op.value=a; op.textContent=a; animalsSelect.appendChild(op); });
           animalsSelect.onchange = () => { if (animalsSelect.value) { appendCsv(animalsInput, animalsSelect.value); animalsSelect.value = ''; } };
         }
@@ -649,7 +657,7 @@
               const notes = Array.isArray(entry.user_notes) ? entry.user_notes : (entry.user_note ? [entry.user_note] : []);
               for (const n of notes){
                 const ts = Array.isArray(n && n.tags) ? n.tags : (n && n.tags ? [String(n.tags)] : []);
-                ts.forEach(t => { const k=String(t); counts[k] = (counts[k]||0)+1; });
+                ts.forEach(t => { const k=String(t).trim().toLowerCase(); counts[k] = (counts[k]||0)+1; });
               }
             }
           } catch (_) {}
@@ -703,7 +711,6 @@
         importanceRange.value = 1;
         importanceNumber.value = 1;
         updateImportancePreview();
-        enhanceTagsSelect();
         loadAll();
       })();
     </script>
