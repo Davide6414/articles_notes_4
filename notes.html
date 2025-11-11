@@ -28,6 +28,16 @@
       input[type="text"], input[type="url"], textarea, select { width: 100%; padding: 8px 10px; border: 1px solid #d0d0d0; border-radius: 8px; font-size: 14px; box-sizing: border-box; }
       textarea { resize: vertical; }
       .row { display: grid; gap: 6px; }
+
+      /* Evidenzia le lettere separatrici nell'elenco dei tag */
+      .chip.letter-sep {
+        font-weight: 700;
+        font-size: 16px;
+        padding: 6px 12px;
+        background: #eef2f7;
+        border: 1px solid #cbd5e1;
+        color: #0f172a;
+      }
     </style>
   </head>
   <body>
@@ -448,7 +458,12 @@
               const first = (String(t).trim()[0]||'').toUpperCase();
               const letter = (first && first >= 'A' && first <= 'Z') ? first : '#';
               if (letter !== prevLetter) {
-                const sep = document.createElement('span'); sep.className='chip'; sep.textContent = letter; sep.title = `Inizio ${letter}`;
+                const sep = document.createElement('span');
+                sep.className='chip letter-sep';
+                sep.textContent = letter;
+                sep.title = `Inizio ${letter}`;
+                sep.setAttribute('role','separator');
+                sep.setAttribute('aria-label', `Sezione ${letter}`);
                 tagChips.appendChild(sep);
                 prevLetter = letter;
               }

@@ -268,9 +268,10 @@
         const filtersChips = document.getElementById('filtersChips');
         const filtersEl = document.querySelector('section.filters');
         const filtersCollapseBtn = document.getElementById('filtersCollapseBtn');
-        // Inject a toggle button to switch between article view and folder view
+        // Inject toggles in filters header (view + ordering)
         const filtersHeader = document.querySelector('.filters .filters-header');
         let groupToggleBtn = null;
+        let orderToggleBtn = null;
         const advDropdown = document.getElementById('advDropdown');
         const advBtn = document.getElementById('advBtn');
         const advMenu = document.getElementById('advMenu');
@@ -292,6 +293,7 @@
         const COLLAPSE_KEY = 'notesCollapsed.v1';
         const FILTERS_COLLAPSE_KEY = 'filtersCollapsed.v1';
         const FOLDERS_COLLAPSE_KEY = 'foldersCollapsed.v1';
+        const ORDER_KEY = 'orderByColor.v1';
         let facets = { types: [], tags: [], animals: [], methods: [] };
         const GROUP_BY_KEY = 'groupByFolder.v1';
         const LAST_FOLDER_KEY = 'lastFolderUsed.v1';
@@ -300,6 +302,9 @@
         function getLastFolder(){ try { return localStorage.getItem(LAST_FOLDER_KEY) || ''; } catch(_) { return ''; } }
         function setLastFolder(v){ try { if (v) localStorage.setItem(LAST_FOLDER_KEY, v); } catch(_){} }
         let groupByFolder = loadGroupByFolder();
+        function loadOrderByColor(){ try { return localStorage.getItem(ORDER_KEY) === '1'; } catch(_) { return false; } }
+        function saveOrderByColor(v){ try { localStorage.setItem(ORDER_KEY, v ? '1':'0'); } catch(_){} }
+        let orderByColor = loadOrderByColor();
         let filters = { title: '', types: new Set(), tags: new Set(), animals: new Set(), methods: new Set(), modes: { types: 'OR', tags: 'OR', animals: 'OR', methods: 'OR' } };
 
         // Allow toggling items in <select multiple> with simple click (no Ctrl/Cmd needed)
@@ -613,6 +618,16 @@
           }
           function updateGroupToggleLabel(){ if (groupToggleBtn) groupToggleBtn.textContent = groupByFolder ? 'Vista: Cartelle' : 'Vista: Articoli'; }
           updateGroupToggleLabel();
+          // Build or update the order toggle button
+          if (filtersHeader && !orderToggleBtn) {
+            orderToggleBtn = document.createElement('button');
+            orderToggleBtn.className = 'btn';
+            orderToggleBtn.id = 'orderByBtn';
+            orderToggleBtn.addEventListener('click', () => { orderByColor = !orderByColor; saveOrderByColor(orderByColor); updateOrderToggleLabel(); renderNotes(); });
+            filtersHeader.insertBefore(orderToggleBtn, filtersCollapseBtn);
+          }
+          function updateOrderToggleLabel(){ if (orderToggleBtn) orderToggleBtn.textContent = orderByColor ? 'Ordine: Colore' : 'Ordine: Titolo'; }
+          updateOrderToggleLabel();
           // Title input
           filterTitleEl.value = filters.title;
           filterTitleEl.oninput = () => { filters.title = (filterTitleEl.value || '').toLowerCase().trim(); renderNotes(); };
@@ -1080,12 +1095,41 @@
 
           // Ordina le sezioni per titolo (fallback DOI)
           function folderLabelOf(entry){ const s = String((entry && entry.cartella) || '').trim(); return s || 'Senza cartella'; }
-          const sections = dois.map(doi => {
+          const items = dois.map(doi => {
             const entry = db[doi] || {};
             const title = getTitle(entry) || doi;
             const folder = folderLabelOf(entry);
             return { doi, entry, title, folder };
-          }).sort((a, b) => {
+          });
+          // Build a rainbow-like color map for folders (uniform distribution)
+          function makeFolderColorMap(items){
+            try {
+              const special = 'Senza cartella';
+              const namesAll = Array.from(new Set(items.map(x => x.folder)));
+              const names = namesAll.filter(n => String(n||'').toLowerCase() !== special.toLowerCase())
+                                    .sort((a,b)=> a.localeCompare(b, undefined, {sensitivity:'base'}));
+              const map = new Map();
+              // Neutral default for special
+              map.set(special, { border: '#d1d5db', bg: '#e5e7eb', hue: -1 });
+              const n = Math.max(1, names.length);
+              names.forEach((name, i) => {
+                const hue = Math.round((i * 360) / n);
+                const border = `hsl(${hue} 75% 42%)`;
+                const bg = `hsl(${hue} 85% 86%)`;
+                map.set(name, { border, bg, hue });
+              });
+              return map;
+            } catch (_) { return new Map(); }
+          }
+          const folderColorMap = makeFolderColorMap(items);
+          const sections = items.sort((a, b) => {
+            if (!groupByFolder && orderByColor) {
+              const ca = (folderColorMap.get(a.folder) || {}).hue;
+              const cb = (folderColorMap.get(b.folder) || {}).hue;
+              const ha = (typeof ca === 'number') ? ca : 9999;
+              const hb = (typeof cb === 'number') ? cb : 9999;
+              if (ha !== hb) return ha - hb;
+            }
             if (groupByFolder) {
               const af = (a.folder || '').toLowerCase();
               const bf = (b.folder || '').toLowerCase();
@@ -1096,30 +1140,7 @@
             }
             return a.title.localeCompare(b.title, undefined, { sensitivity: 'base' });
           });
-
           const collapsedMap = loadCollapsed();
-
-          // Build a rainbow-like color map for folders (uniform distribution)
-          function makeFolderColorMap(items){
-            try {
-              const special = 'Senza cartella';
-              const namesAll = Array.from(new Set(items.map(x => x.folder)));
-              const names = namesAll.filter(n => String(n||'').toLowerCase() !== special.toLowerCase())
-                                    .sort((a,b)=> a.localeCompare(b, undefined, {sensitivity:'base'}));
-              const map = new Map();
-              // Neutral default for special
-              map.set(special, { border: '#d1d5db', bg: '#f3f4f6' });
-              const n = Math.max(1, names.length);
-              names.forEach((name, i) => {
-                const hue = Math.round((i * 360) / n);
-                const border = `hsl(${hue} 75% 42%)`;
-                const bg = `hsl(${hue} 85% 95%)`;
-                map.set(name, { border, bg });
-              });
-              return map;
-            } catch (_) { return new Map(); }
-          }
-          const folderColorMap = makeFolderColorMap(sections);
 
           // If grouping by folder, render grouped view with persistent folder collapsing and exit early
           if (groupByFolder) {
@@ -1141,7 +1162,6 @@
               const btn = document.createElement('button'); btn.className = 'collapse-btn';
               const collapsed = !!collapsedMap[doi]; btn.setAttribute('aria-expanded', String(!collapsed)); btn.textContent = collapsed ? '>' : 'v'; header.appendChild(btn);
             const icon = document.createElement('div'); icon.className = 'article-icon'; icon.textContent = '??';
-            try { const fc = folderColorMap.get(folder) || folderColorMap.get('Senza cartella'); if (fc){ icon.style.borderColor = fc.border; icon.style.background = fc.bg; } } catch(_){}
               // Color by folder
               try { const fname = folderLabelOf(entry); const fc = folderColorMap.get(fname) || folderColorMap.get('Senza cartella'); if (fc){ icon.style.borderColor = fc.border; icon.style.background = fc.bg; } } catch(_){}
               const caption = document.createElement('div'); caption.className = 'article-caption'; caption.textContent = title;
@@ -1204,7 +1224,16 @@
               const el = buildArticleSection(it.doi, it.entry, it.title);
               if (!el) return; const arr = groups.get(it.folder) || []; arr.push({ node: el, sortKey: it.title }); groups.set(it.folder, arr);
             });
-            const names = Array.from(groups.keys()).sort((a,b)=>{ const az=(String(a).toLowerCase()==='senza cartella')?'':String(a); const bz=(String(b).toLowerCase()==='senza cartella')?'':String(b); return az.localeCompare(bz, undefined, {sensitivity:'base'}); });
+            const names = Array.from(groups.keys()).sort((a,b)=>{
+              if (orderByColor) {
+                const ca = (folderColorMap.get(a) || {}).hue; const cb = (folderColorMap.get(b) || {}).hue;
+                const ha = (typeof ca === 'number') ? ca : 9999; const hb = (typeof cb === 'number') ? cb : 9999;
+                if (ha !== hb) return ha - hb;
+              }
+              const az=(String(a).toLowerCase()==='senza cartella')?'':String(a);
+              const bz=(String(b).toLowerCase()==='senza cartella')?'':String(b);
+              return az.localeCompare(bz, undefined, {sensitivity:'base'});
+            });
             if (names.length === 0) {
               const empty = document.createElement('div'); empty.textContent = 'Nessun risultato con i filtri correnti.'; empty.style.color = '#6b7280'; empty.style.fontSize = '14px'; notesContainer.appendChild(empty);
             } else {
@@ -1301,7 +1330,7 @@
             const icon = document.createElement('div'); icon.className = 'article-icon'; icon.textContent = '📄';
             const caption = document.createElement('div'); caption.className = 'article-caption';
             // Color by folder
-            try { const fc = folderColorMap.get(folder) || folderColorMap.get('Senza cartella'); if (fc){ icon.style.borderColor = fc.border; icon.style.background = fc.bg; } } catch(_){}
+            try { const fName = folderLabelOf(entry); const fc = folderColorMap.get(fName) || folderColorMap.get('Senza cartella'); if (fc){ icon.style.borderColor = fc.border; icon.style.background = fc.bg; } } catch(_){}
             // Short caption without count
             caption.textContent = title;
             // Populate header based on state later
