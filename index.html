@@ -166,6 +166,8 @@
       .loading-backdrop.open { display: flex; }
       .loading-box { background:#fff; border:1px solid #e5e7eb; border-radius:12px; padding:16px 20px; min-width:260px; display:grid; gap:10px; align-items:center; justify-items:center; box-shadow: 0 20px 50px rgba(0,0,0,0.15); }
       .spinner { width:28px; height:28px; border:3px solid #e5e7eb; border-top:3px solid var(--brand); border-radius:50%; animation: spin 0.8s linear infinite; }
+      /* Tooltip for article background */
+      .article-tooltip { position: fixed; pointer-events: none; display: none; max-width: 480px; max-height: 40vh; overflow: auto; white-space: pre-wrap; font-size: 13px; line-height: 1.35; background: #ffffff; color: #0f172a; border: 1px solid #e5e7eb; border-radius: 10px; box-shadow: 0 10px 30px rgba(0,0,0,0.15); padding: 10px 12px; z-index: 300; }
       @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
     </style>
   </head>
@@ -492,6 +494,55 @@
         function showLoadingOverlay(message){ const back = ensureLoadingOverlay(); const lab = document.getElementById('loadingLabel'); if (lab) lab.textContent = message || 'Caricamento...'; back.classList.add('open'); }
         function updateLoadingOverlay(message){ const lab = document.getElementById('loadingLabel'); if (lab) lab.textContent = message || ''; }
         function hideLoadingOverlay(){ try { const back = document.getElementById('loadingBackdrop'); if (back) back.classList.remove('open'); } catch(_){} }
+
+        // Article background tooltip helpers
+        function ensureArticleTooltip(){
+          let tip = document.getElementById('articleTooltip');
+          if (!tip) {
+            tip = document.createElement('div'); tip.id = 'articleTooltip'; tip.className = 'article-tooltip'; document.body.appendChild(tip);
+            // Hide on scroll/resize
+            window.addEventListener('scroll', hideArticleTooltip, true);
+            window.addEventListener('resize', hideArticleTooltip);
+          }
+          return tip;
+        }
+        function positionTooltip(tip, evt){
+          try {
+            const pad = 12;
+            const vw = window.innerWidth || document.documentElement.clientWidth || 1024;
+            const vh = window.innerHeight || document.documentElement.clientHeight || 768;
+            const rect = tip.getBoundingClientRect();
+            let x = (evt && evt.clientX ? evt.clientX : 0) + pad;
+            let y = (evt && evt.clientY ? evt.clientY : 0) + pad;
+            if (x + rect.width + pad > vw) x = Math.max(pad, vw - rect.width - pad);
+            if (y + rect.height + pad > vh) y = Math.max(pad, vh - rect.height - pad);
+            tip.style.left = x + 'px'; tip.style.top = y + 'px';
+          } catch (_) {}
+        }
+        function showArticleTooltip(text, evt){
+          const tip = ensureArticleTooltip();
+          tip.textContent = text || '';
+          tip.style.display = text ? 'block' : 'none';
+          if (text) positionTooltip(tip, evt);
+        }
+        function moveArticleTooltip(evt){
+          const tip = document.getElementById('articleTooltip');
+          if (tip && tip.style.display === 'block') positionTooltip(tip, evt);
+        }
+        function hideArticleTooltip(){ try { const tip = document.getElementById('articleTooltip'); if (tip) tip.style.display = 'none'; } catch(_){} }
+        function getBackground(entry){ try { return String(entry && entry.dettagli && entry.dettagli.background || '').trim(); } catch(_) { return ''; } }
+        function attachBackgroundTooltip(section, entry){
+          try {
+            const bg = getBackground(entry);
+            if (!bg) return;
+            // Fallback title (quick hint)
+            try { section.title = bg.length > 250 ? (bg.slice(0,250) + '…') : bg; } catch(_){}
+            let timer = null;
+            section.addEventListener('mouseenter', (e)=>{ timer = setTimeout(()=> showArticleTooltip(bg, e), 150); });
+            section.addEventListener('mousemove', (e)=> moveArticleTooltip(e));
+            section.addEventListener('mouseleave', ()=>{ if (timer) { clearTimeout(timer); timer = null; } hideArticleTooltip(); });
+          } catch (_) {}
+        }
 
         function normalizeDoi(raw){
           if (!raw) return '';
@@ -1158,6 +1209,8 @@
               if (advancedActive && count === 0) return null;
 
               const section = document.createElement('section'); section.className = 'notes-section';
+              // Attach background tooltip on hover
+              attachBackgroundTooltip(section, entry);
               const header = document.createElement('div'); header.className = 'section-header';
               const btn = document.createElement('button'); btn.className = 'collapse-btn';
               const collapsed = !!collapsedMap[doi]; btn.setAttribute('aria-expanded', String(!collapsed)); btn.textContent = collapsed ? '>' : 'v'; header.appendChild(btn);
@@ -1312,6 +1365,8 @@
 
             const section = document.createElement('section');
             section.className = 'notes-section';
+            // Attach background tooltip on hover (non-grouped view)
+            attachBackgroundTooltip(section, entry);
 
             const header = document.createElement('div');
             header.className = 'section-header';
