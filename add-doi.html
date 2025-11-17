@@ -32,6 +32,13 @@
       .mode-switch { display: inline-flex; padding: 4px; border-radius: 9999px; background: #f3f4f6; border: 1px solid #e5e7eb; }
       .mode-switch button { border: none; background: transparent; padding: 6px 12px; font-size: 13px; border-radius: 9999px; cursor: pointer; color: #374151; }
       .mode-switch button.active { background: #2563eb; color: #fff; }
+
+      /* Loading overlay */
+      .loading-backdrop { position: fixed; inset:0; background: rgba(0,0,0,0.25); display: none; align-items: center; justify-content: center; z-index: 200; }
+      .loading-backdrop.open { display: flex; }
+      .loading-box { background:#fff; border:1px solid #e5e7eb; border-radius:12px; padding:16px 20px; min-width:260px; display:grid; gap:10px; align-items:center; justify-items:center; box-shadow: 0 20px 50px rgba(0,0,0,0.15); }
+      .spinner { width:28px; height:28px; border:3px solid #e5e7eb; border-top:3px solid #2563eb; border-radius:50%; animation: spin 0.8s linear infinite; }
+      @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
     </style>
   </head>
   <body>
@@ -222,15 +229,17 @@
             const doi = (lastMessage.DOI || lastMessage.doi || '').trim();
             if (!doi) throw new Error('Nessun DOI nei metadati');
             const minimal = minimalRecordFromCrossref(lastMessage);
+            showLoadingOverlay('Salvataggio articolo...');
             const tid = Toast ? Toast.loading('Salvataggio in corso...') : null;
             await DataService.saveRecord(doi, minimal);
             if (tid && Toast.update) { Toast.update(tid, 'DOI salvato', 'success'); setTimeout(()=>Toast.dismiss(tid), 600); }
-            showSuccess('Salvato correttamente');
+            updateLoadingOverlay('Salvato correttamente. Apertura dettagli...');
             setTimeout(() => { window.location.href = `details.html?doi=${encodeURIComponent(doi)}`; }, 500);
           } catch(e){
             console.error('Salvataggio fallito', e);
             if (Toast && Toast.error) Toast.error('Errore durante il salvataggio');
             showError('Errore durante il salvataggio');
+            hideLoadingOverlay();
           }
         }
 
@@ -264,10 +273,11 @@
           const record = minimalRecordFromManualTitle(manualId, rawTitle);
           try {
             manualSaveBtn.disabled = true;
+            showLoadingOverlay('Salvataggio articolo...');
             const tid = Toast ? Toast.loading('Salvataggio in corso...') : null;
             await DataService.saveRecord(manualId, record);
             if (tid && Toast.update) { Toast.update(tid, 'Titolo salvato', 'success'); setTimeout(()=>Toast.dismiss(tid), 600); }
-            showSuccess('Titolo salvato correttamente.');
+            updateLoadingOverlay('Titolo salvato. Apertura dettagli...');
             manualTitleInput.value = '';
             setTimeout(() => { window.location.href = `details.html?doi=${encodeURIComponent(manualId)}`; }, 500);
           } catch(e){
@@ -276,6 +286,8 @@
             showError('Errore durante il salvataggio del titolo.');
           } finally {
             manualSaveBtn.disabled = false;
+            // In caso di redirect l'overlay verrà comunque rimpiazzato; lo nascondiamo solo se restiamo sulla pagina per errore
+            setTimeout(() => hideLoadingOverlay(), 1200);
           }
         }
 
@@ -287,3 +299,18 @@
     </script>
   </body>
   </html>
+        // Loading overlay helpers
+        function ensureLoadingOverlay(){
+          let back = document.getElementById('loadingBackdrop');
+          if (!back) {
+            back = document.createElement('div'); back.id='loadingBackdrop'; back.className='loading-backdrop';
+            const box = document.createElement('div'); box.className='loading-box'; box.id='loadingBox';
+            const sp = document.createElement('div'); sp.className='spinner'; box.appendChild(sp);
+            const msg = document.createElement('div'); msg.id='loadingLabel'; msg.style.fontSize='14px'; msg.textContent=''; box.appendChild(msg);
+            back.appendChild(box); document.body.appendChild(back);
+          }
+          return back;
+        }
+        function showLoadingOverlay(message){ const back = ensureLoadingOverlay(); const lab = document.getElementById('loadingLabel'); if (lab) lab.textContent = message || 'Salvataggio...'; back.classList.add('open'); }
+        function updateLoadingOverlay(message){ const lab = document.getElementById('loadingLabel'); if (lab) lab.textContent = message || ''; }
+        function hideLoadingOverlay(){ try { const back = document.getElementById('loadingBackdrop'); if (back) back.classList.remove('open'); } catch(_){} }
