@@ -113,6 +113,22 @@
         let lastMessage = null;
         let mode = 'doi';
 
+        // Loading overlay helpers
+        function ensureLoadingOverlay(){
+          let back = document.getElementById('loadingBackdrop');
+          if (!back) {
+            back = document.createElement('div'); back.id='loadingBackdrop'; back.className='loading-backdrop';
+            const box = document.createElement('div'); box.className='loading-box'; box.id='loadingBox';
+            const sp = document.createElement('div'); sp.className='spinner'; box.appendChild(sp);
+            const msg = document.createElement('div'); msg.id='loadingLabel'; msg.style.fontSize='14px'; msg.textContent=''; box.appendChild(msg);
+            back.appendChild(box); document.body.appendChild(back);
+          }
+          return back;
+        }
+        function showLoadingOverlay(message){ const back = ensureLoadingOverlay(); const lab = document.getElementById('loadingLabel'); if (lab) lab.textContent = message || 'Salvataggio...'; back.classList.add('open'); }
+        function updateLoadingOverlay(message){ const lab = document.getElementById('loadingLabel'); if (lab) lab.textContent = message || ''; }
+        function hideLoadingOverlay(){ try { const back = document.getElementById('loadingBackdrop'); if (back) back.classList.remove('open'); } catch(_){} }
+
         function setMode(nextMode){
           if (!nextMode || mode === nextMode) return;
           mode = nextMode;
@@ -299,18 +315,3 @@
     </script>
   </body>
   </html>
-        // Loading overlay helpers
-        function ensureLoadingOverlay(){
-          let back = document.getElementById('loadingBackdrop');
-          if (!back) {
-            back = document.createElement('div'); back.id='loadingBackdrop'; back.className='loading-backdrop';
-            const box = document.createElement('div'); box.className='loading-box'; box.id='loadingBox';
-            const sp = document.createElement('div'); sp.className='spinner'; box.appendChild(sp);
-            const msg = document.createElement('div'); msg.id='loadingLabel'; msg.style.fontSize='14px'; msg.textContent=''; box.appendChild(msg);
-            back.appendChild(box); document.body.appendChild(back);
-          }
-          return back;
-        }
-        function showLoadingOverlay(message){ const back = ensureLoadingOverlay(); const lab = document.getElementById('loadingLabel'); if (lab) lab.textContent = message || 'Salvataggio...'; back.classList.add('open'); }
-        function updateLoadingOverlay(message){ const lab = document.getElementById('loadingLabel'); if (lab) lab.textContent = message || ''; }
-        function hideLoadingOverlay(){ try { const back = document.getElementById('loadingBackdrop'); if (back) back.classList.remove('open'); } catch(_){} }
