@@ -190,12 +190,11 @@
 
             const typeCol = document.createElement('div'); typeCol.className = 'row';
             typeCol.appendChild(Object.assign(document.createElement('label'), { textContent: 'Tipo reference' }));
-            const typeIn = Object.assign(document.createElement('input'), {
-              type:'text',
-              list:'modTypeList',
-              value: it.refType || '',
-              placeholder:'es. review, primary study, meta-analysis'
-            });
+            const typeIn = document.createElement('input');
+            typeIn.type = 'text';
+            typeIn.setAttribute('list', 'modTypeList');
+            typeIn.value = it.refType || '';
+            typeIn.placeholder = 'es. review, primary study, meta-analysis';
             typeIn.addEventListener('input', () => { it.refType = typeIn.value; });
             typeCol.appendChild(typeIn);
             effectWrap.appendChild(typeCol);
@@ -357,4 +356,3 @@
     </script>
   </body>
   </html>
-
