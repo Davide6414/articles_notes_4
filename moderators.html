@@ -92,6 +92,7 @@
         let dois = [];
         let articlesIndex = [];
         let items = [];
+        let tagFacetValues = [];
 
         function splitCsv(str){ return (str||'').split(',').map(s=>s.trim()).filter(Boolean); }
 
@@ -116,6 +117,7 @@
             const title = getTitle(entry) || doi;
             return { doi, title, label: title + ' — ' + doi };
           });
+          computeTagFacets();
           if (!items.length) {
             addEmpty(initialDOI && db[initialDOI] ? initialDOI : '');
           } else {
@@ -123,10 +125,33 @@
           }
         }
 
+        function computeTagFacets(){
+          const set = new Set();
+          try {
+            Object.keys(db||{}).forEach(doi => {
+              const entry = db[doi] || {};
+              // Tags da note
+              const notes = Array.isArray(entry.user_notes) ? entry.user_notes : (entry.user_note ? [entry.user_note] : []);
+              notes.forEach(n => {
+                const ts = Array.isArray(n && n.tags) ? n.tags : (n && n.tags ? [String(n.tags)] : []);
+                ts.forEach(t => { const k = String(t).trim(); if (k) set.add(k); });
+              });
+              // Tags da moderators
+              const mods = Array.isArray(entry.user_moderators) ? entry.user_moderators : [];
+              mods.forEach(m => {
+                const ts = Array.isArray(m && m.tags) ? m.tags : (m && m.tags ? [String(m.tags)] : []);
+                ts.forEach(t => { const k = String(t).trim(); if (k) set.add(k); });
+              });
+            });
+          } catch (_) {}
+          tagFacetValues = Array.from(set).sort((a,b)=>a.localeCompare(b, undefined, {sensitivity:'base'}));
+        }
+
         function addEmpty(targetDoi){
           items.push({
             id: uuid(),
             targetDoi: targetDoi || '',
+            name: '',
             expectedEffect: '',
             referenceDoi: '',
             referenceTitle: '',
@@ -163,20 +188,75 @@
             head.appendChild(title); head.appendChild(removeBtn);
             card.appendChild(head);
 
+            // Nome moderator
+            const nameRow = document.createElement('div'); nameRow.className = 'row';
+            nameRow.appendChild(Object.assign(document.createElement('label'), { textContent: 'Nome moderator' }));
+            const nameIn = document.createElement('input');
+            nameIn.type = 'text';
+            nameIn.placeholder = 'es. habitat connectivity, flow regime';
+            nameIn.value = it.name || '';
+            nameIn.addEventListener('input', () => { it.name = nameIn.value; });
+            nameRow.appendChild(nameIn);
+            card.appendChild(nameRow);
+
             // Target article
             const targetRow = document.createElement('div'); targetRow.className = 'row';
             targetRow.appendChild(Object.assign(document.createElement('label'), { textContent: 'Articolo target (dove salvare il moderator)' }));
-            const targetSel = document.createElement('select');
-            const optEmpty = document.createElement('option'); optEmpty.value=''; optEmpty.textContent='Seleziona articolo...'; targetSel.appendChild(optEmpty);
-            dois.forEach(doi => {
-              const opt = document.createElement('option');
-              opt.value = doi;
-              opt.textContent = getTitle(db[doi]) || doi;
-              targetSel.appendChild(opt);
+            const targetInput = document.createElement('input');
+            targetInput.type = 'search';
+            targetInput.placeholder = 'Digita parte del titolo o DOI';
+            if (it.targetDoi && db[it.targetDoi]) {
+              targetInput.value = getTitle(db[it.targetDoi]) || it.targetDoi;
+            }
+            const targetInfo = document.createElement('div'); targetInfo.className = 'small';
+            const targetBox = document.createElement('div'); targetBox.className = 'ref-suggestions'; targetBox.style.display = 'none';
+
+            function updateTargetInfo(){
+              if (it.targetDoi) {
+                const entry = db[it.targetDoi];
+                const titleTxt = getTitle(entry) || it.targetDoi;
+                targetInfo.textContent = `Articolo target: ${titleTxt} (${it.targetDoi})`;
+              } else {
+                targetInfo.textContent = 'Nessun articolo target selezionato.';
+              }
+            }
+
+            function searchTarget(){
+              const q = (targetInput.value || '').toLowerCase().trim();
+              targetBox.innerHTML = '';
+              if (!q) { targetBox.style.display = 'none'; return; }
+              const matches = articlesIndex.filter(a =>
+                a.title.toLowerCase().includes(q) ||
+                a.doi.toLowerCase().includes(q)
+              ).slice(0, 10);
+              if (!matches.length) { targetBox.style.display = 'none'; return; }
+              matches.forEach(m => {
+                const row = document.createElement('div'); row.className = 'ref-suggestion';
+                const t = document.createElement('div'); t.textContent = m.title; row.appendChild(t);
+                const d = document.createElement('div'); d.className = 'small'; d.textContent = m.doi; row.appendChild(d);
+                row.addEventListener('click', () => {
+                  it.targetDoi = m.doi;
+                  targetInput.value = m.title;
+                  targetBox.style.display = 'none';
+                  updateTargetInfo();
+                });
+                targetBox.appendChild(row);
+              });
+              targetBox.style.display = 'block';
+            }
+
+            targetInput.addEventListener('input', searchTarget);
+            targetInput.addEventListener('focus', searchTarget);
+            document.addEventListener('click', (ev) => {
+              if (!targetBox.contains(ev.target) && ev.target !== targetInput) {
+                targetBox.style.display = 'none';
+              }
             });
-            targetSel.value = it.targetDoi || '';
-            targetSel.addEventListener('change', () => { it.targetDoi = targetSel.value || ''; });
-            targetRow.appendChild(targetSel);
+
+            targetRow.appendChild(targetInput);
+            targetRow.appendChild(targetBox);
+            targetRow.appendChild(targetInfo);
+            updateTargetInfo();
             card.appendChild(targetRow);
 
             // Expected effect + type
@@ -278,6 +358,29 @@
             tagsRow.appendChild(tagsIn);
             tagsRow.appendChild(tagsChips);
             renderTags();
+
+            if (tagFacetValues.length) {
+              const labelSel = document.createElement('div');
+              labelSel.className = 'small';
+              labelSel.textContent = 'Tag esistenti (selezione multipla):';
+              tagsRow.appendChild(labelSel);
+              const tagSelect = document.createElement('select');
+              tagSelect.multiple = true;
+              tagSelect.size = Math.min(10, Math.max(4, tagFacetValues.length));
+              tagFacetValues.forEach(t => {
+                const op = document.createElement('option'); op.value = t; op.textContent = t; tagSelect.appendChild(op);
+              });
+              tagSelect.addEventListener('change', () => {
+                const chosen = Array.from(tagSelect.selectedOptions).map(o => o.value);
+                const manual = splitCsv(tagsIn.value);
+                const merged = Array.from(new Set([].concat(manual, chosen)));
+                tagsIn.value = merged.join(', ');
+                it.tagsText = tagsIn.value;
+                renderTags();
+              });
+              tagsRow.appendChild(tagSelect);
+            }
+
             card.appendChild(tagsRow);
 
             modsEl.appendChild(card);
@@ -291,7 +394,8 @@
             const doi = (it.targetDoi || '').trim();
             if (!doi) return;
             // ignora righe completamente vuote
-            const hasContent = (it.expectedEffect && it.expectedEffect.trim()) ||
+            const hasContent = (it.name && it.name.trim()) ||
+                               (it.expectedEffect && it.expectedEffect.trim()) ||
                                (it.referenceDoi && it.referenceDoi.trim()) ||
                                (it.refType && it.refType.trim()) ||
                                (splitCsv(it.tagsText).length > 0);
@@ -319,6 +423,7 @@
                 const mod = {
                   id: src.id || uuid(),
                   doi,
+                  name: (src.name || '').trim() || null,
                   expectedEffect: (src.expectedEffect || '').trim() || null,
                   referenceDoi: (src.referenceDoi || '').trim() || null,
                   referenceTitle: (src.referenceTitle || '').trim() || null,

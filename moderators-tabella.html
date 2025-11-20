@@ -39,7 +39,7 @@
     </div>
 
     <div class="filter">
-      <input id="search" type="search" placeholder="Cerca per articolo, reference, tipo, tag o expected effect" />
+      <input id="search" type="search" placeholder="Cerca per articolo, nome moderator, tipo, tag o expected effect" />
     </div>
 
     <div class="table-wrap">
@@ -48,8 +48,7 @@
           <tr>
             <th>Articolo target</th>
             <th class="nowrap">DOI target</th>
-            <th>Reference</th>
-            <th class="nowrap">DOI reference</th>
+            <th>Nome moderator</th>
             <th>Tipo</th>
             <th>Tag</th>
             <th>Expected effect</th>
@@ -82,8 +81,7 @@
             const hay = [
               r.targetTitle || '',
               r.targetDoi || '',
-              r.refTitle || '',
-              r.refDoi || '',
+              r.name || '',
               r.type || '',
               r.expectedEffect || '',
               (Array.isArray(r.tags) ? r.tags.join(' ') : '')
@@ -92,7 +90,7 @@
           });
           if (!filtered.length) {
             const tr = document.createElement('tr');
-            const td = document.createElement('td'); td.colSpan = 7; td.className='muted'; td.textContent = 'Nessun moderator'; tr.appendChild(td); tbody.appendChild(tr); return;
+            const td = document.createElement('td'); td.colSpan = 6; td.className='muted'; td.textContent = 'Nessun moderator'; tr.appendChild(td); tbody.appendChild(tr); return;
           }
           for (const r of filtered) {
             const tr = document.createElement('tr');
@@ -110,17 +108,7 @@
             }
             tr.appendChild(tdTargetDoi);
 
-            tr.appendChild(td(r.refTitle || ''));
-
-            const tdRefDoi = document.createElement('td');
-            tdRefDoi.className = 'nowrap';
-            if (r.refDoi) {
-              const a2 = document.createElement('a');
-              a2.href = `details.html?doi=${encodeURIComponent(r.refDoi)}`;
-              a2.textContent = r.refDoi;
-              tdRefDoi.appendChild(a2);
-            }
-            tr.appendChild(tdRefDoi);
+            tr.appendChild(td(r.name || ''));
 
             tr.appendChild(td(r.type || ''));
 
@@ -151,8 +139,7 @@
                 rows.push({
                   targetDoi: doi,
                   targetTitle,
-                  refDoi: m && m.referenceDoi || '',
-                  refTitle: m && m.referenceTitle || '',
+                  name: m && m.name || '',
                   type: m && m.refType || '',
                   tags: Array.isArray(m && m.tags) ? m.tags : [],
                   expectedEffect: m && m.expectedEffect || '',
@@ -175,4 +162,3 @@
     </script>
   </body>
   </html>
-
