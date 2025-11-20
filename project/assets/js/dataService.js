@@ -18,6 +18,7 @@
       if (Array.isArray(r.user_glossario)) out.user_glossario = r.user_glossario;
       if (r.dettagli && typeof r.dettagli === 'object') out.dettagli = r.dettagli;
       if (Array.isArray(r.dati_variabili)) out.dati_variabili = r.dati_variabili;
+      if (Array.isArray(r.user_moderators)) out.user_moderators = r.user_moderators;
       return out;
     } catch (_) {
       return { DOI: (doi || '').trim() };

@@ -190,6 +190,7 @@
         <a class="btn" href="variabili-tabella.html">Tabella variabili</a>
         <a class="btn" href="grafici.html">Tabella grafici</a>
         <a class="btn" href="glossario.html">Glossario</a>
+        <a class="btn" href="moderators-tabella.html">Tabella moderators</a>
       </div>
     </div>
 
@@ -1248,6 +1249,7 @@
                 try { const normSelf = normalizeDoi(doi); const set = normSelf ? (citedBy.get(normSelf) || new Set()) : new Set(); const countCited = set.size; if (countCited>0){ const cbBtn=document.createElement('button'); cbBtn.className='btn'; cbBtn.textContent = `Cited by (${countCited})`; cbBtn.addEventListener('click', (e)=>{ e.stopPropagation(); const nodes=[]; const list=Array.from(set); list.forEach(normCiting=>{ const key=doiIndex.get(normCiting)||normCiting; const ent=db[key]; const t=getTitle(ent)||key; const row=document.createElement('div'); row.className='ref-row'; const d1=document.createElement('div'); d1.textContent=t; row.appendChild(d1); const d2=document.createElement('div'); d2.className='muted'; d2.textContent=key; row.appendChild(d2); const a=Object.assign(document.createElement('a'), { href:`details.html?doi=${encodeURIComponent(key)}`, textContent:'Apri' }); row.appendChild(a); nodes.push(row); }); openOverlay('Articoli che citano questo DOI', nodes); }); actions.appendChild(cbBtn); } } catch(_){}
                 const addNoteBtn=document.createElement('button'); addNoteBtn.className='btn'; addNoteBtn.textContent='Aggiungi nota'; addNoteBtn.addEventListener('click',(e)=>{ e.stopPropagation(); window.location.href=`notes.html?doi=${encodeURIComponent(doi)}`; });
                 const varsBtn=document.createElement('button'); varsBtn.className='btn'; varsBtn.textContent='Variabili'; varsBtn.addEventListener('click',(e)=>{ e.stopPropagation(); window.location.href=`variabili.html?doi=${encodeURIComponent(doi)}`; });
+                const modsBtn=document.createElement('button'); modsBtn.className='btn'; modsBtn.textContent='Moderators'; modsBtn.addEventListener('click',(e)=>{ e.stopPropagation(); window.location.href=`moderators.html?doi=${encodeURIComponent(doi)}`; });
                 const assignFolderBtn=document.createElement('button'); assignFolderBtn.className='btn'; assignFolderBtn.textContent='Assegna cartella';
                 assignFolderBtn.addEventListener('click', async (e)=>{
                   e.stopPropagation();
@@ -1525,6 +1527,10 @@
               varsBtn.className = 'btn';
               varsBtn.textContent = 'Variabili';
               varsBtn.addEventListener('click', (e) => { e.stopPropagation(); window.location.href = `variabili.html?doi=${encodeURIComponent(doi)}`; });
+              const modsBtn = document.createElement('button');
+              modsBtn.className = 'btn';
+              modsBtn.textContent = 'Moderators';
+              modsBtn.addEventListener('click', (e) => { e.stopPropagation(); window.location.href = `moderators.html?doi=${encodeURIComponent(doi)}`; });
               // Assign folder button
               const assignFolderBtn = document.createElement('button');
               assignFolderBtn.className = 'btn';

@@ -1,0 +1,360 @@
+<!doctype html>
+<html lang="it">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Moderators</title>
+    <link rel="stylesheet" href="project/assets/css/style.css" />
+    <script src="project/assets/js/dataService.js"></script>
+    <script src="project/assets/js/toast.js"></script>
+    <style>
+      :root { --gap: 12px; --border: 1px solid #e5e7eb; --radius: 12px; }
+      body { margin: 2rem; font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; color: #111827; }
+      a { color: #2563eb; text-decoration: none; }
+      a:hover { text-decoration: underline; }
+      .header { display: grid; grid-template-columns: 1fr auto; gap: 12px; align-items: center; margin-bottom: 16px; }
+      .title { margin: 0; font-size: 22px; }
+      .sub { color: #6b7280; font-size: 13px; }
+      .toolbar { display: flex; gap: 8px; align-items: center; }
+      .btn { font-size: 14px; padding: 8px 12px; border-radius: 8px; border: 1px solid #d0d0d0; background: #fff; cursor: pointer; }
+      .btn:hover { background: #f6f6f6; }
+      .primary { background: #2563eb; border-color: #2563eb; color: #fff; }
+      .panel { padding: 12px; border: var(--border); border-radius: var(--radius); background: #fff; display: grid; gap: 10px; }
+      .row { display: grid; gap: 6px; }
+      .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+      label { font-size: 12px; color: #374151; }
+      input[type="text"], input[type="search"], textarea, select {
+        width: 100%;
+        padding: 8px 10px;
+        border: 1px solid #d0d0d0;
+        border-radius: 8px;
+        font-size: 14px;
+        box-sizing: border-box;
+      }
+      textarea { resize: vertical; }
+      .mods { display: grid; gap: 10px; }
+      .mod-card {
+        border: 1px solid #e5e7eb;
+        border-radius: 10px;
+        padding: 10px;
+        display: grid;
+        gap: 8px;
+        background: #f9fafb;
+      }
+      .mod-head { display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: center; }
+      .muted { color: #6b7280; font-size: 12px; }
+      .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+      .chip { font-size: 12px; padding: 4px 8px; border-radius: 9999px; border: 1px solid #d1d5db; background: #f8fafc; }
+      .ref-suggestions { border-radius: 8px; border: 1px solid #e5e7eb; background: #fff; max-height: 160px; overflow: auto; margin-top: 4px; }
+      .ref-suggestion {
+        padding: 6px 8px;
+        font-size: 13px;
+        cursor: pointer;
+        border-bottom: 1px solid #f3f4f6;
+      }
+      .ref-suggestion:hover { background: #eff6ff; }
+      .small { font-size: 11px; color: #6b7280; }
+    </style>
+  </head>
+  <body>
+    <div class="header">
+      <div>
+        <h1 class="title">Moderators</h1>
+        <div class="sub">Aggiungi più moderators e salvali per articoli diversi in un'unica operazione.</div>
+      </div>
+      <div class="toolbar">
+        <a class="btn" href="index.html">Torna</a>
+        <button id="addModBtn" class="btn">+ Moderator</button>
+        <button id="saveBtn" class="btn primary">Salva</button>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="row">
+        <div class="small">
+          Ogni riga rappresenta un moderator legato a un articolo “target” (dove viene salvato)
+          e supportato da una reference (un altro articolo presente in DB).
+        </div>
+      </div>
+      <div id="mods" class="mods"></div>
+    </div>
+
+    <script>
+      (function(){
+        const addModBtn = document.getElementById('addModBtn');
+        const saveBtn = document.getElementById('saveBtn');
+        const modsEl = document.getElementById('mods');
+
+        const params = new URLSearchParams(location.search);
+        const initialDOI = params.get('doi') || '';
+
+        let db = {};
+        let dois = [];
+        let articlesIndex = [];
+        let items = [];
+
+        function splitCsv(str){ return (str||'').split(',').map(s=>s.trim()).filter(Boolean); }
+
+        function uuid(){
+          try { return crypto.randomUUID(); }
+          catch(_) { return 'mod_' + Date.now().toString(36) + '_' + Math.floor(Math.random()*1e6).toString(36); }
+        }
+
+        function getTitle(entry){
+          if (!entry) return '';
+          const t = entry.title;
+          if (Array.isArray(t) && t.length) return t.join(' - ');
+          if (typeof t === 'string') return t;
+          return '';
+        }
+
+        async function loadAll(){
+          try { db = await DataService.getAll(); } catch(e){ db = {}; }
+          dois = Object.keys(db).sort((a,b)=>a.localeCompare(b, undefined, {sensitivity:'base'}));
+          articlesIndex = dois.map(doi => {
+            const entry = db[doi] || {};
+            const title = getTitle(entry) || doi;
+            return { doi, title, label: title + ' — ' + doi };
+          });
+          if (!items.length) {
+            addEmpty(initialDOI && db[initialDOI] ? initialDOI : '');
+          } else {
+            renderList();
+          }
+        }
+
+        function addEmpty(targetDoi){
+          items.push({
+            id: uuid(),
+            targetDoi: targetDoi || '',
+            expectedEffect: '',
+            referenceDoi: '',
+            referenceTitle: '',
+            refType: '',
+            tagsText: ''
+          });
+          renderList();
+        }
+
+        addModBtn.addEventListener('click', () => addEmpty(initialDOI && db[initialDOI] ? initialDOI : ''));
+
+        function renderList(){
+          modsEl.innerHTML = '';
+          if (!items.length) {
+            const empty = document.createElement('div');
+            empty.className = 'muted';
+            empty.textContent = 'Nessun moderator. Clicca "+ Moderator" per aggiungerne uno.';
+            modsEl.appendChild(empty);
+            return;
+          }
+
+          items.forEach((it, idx) => {
+            const card = document.createElement('div'); card.className = 'mod-card';
+
+            const head = document.createElement('div'); head.className = 'mod-head';
+            const title = document.createElement('div'); title.className = 'muted'; title.textContent = `Moderator ${idx+1}`;
+            const removeBtn = document.createElement('button');
+            removeBtn.className = 'btn';
+            removeBtn.textContent = 'Rimuovi';
+            removeBtn.addEventListener('click', () => {
+              items = items.filter(x => x !== it);
+              renderList();
+            });
+            head.appendChild(title); head.appendChild(removeBtn);
+            card.appendChild(head);
+
+            // Target article
+            const targetRow = document.createElement('div'); targetRow.className = 'row';
+            targetRow.appendChild(Object.assign(document.createElement('label'), { textContent: 'Articolo target (dove salvare il moderator)' }));
+            const targetSel = document.createElement('select');
+            const optEmpty = document.createElement('option'); optEmpty.value=''; optEmpty.textContent='Seleziona articolo...'; targetSel.appendChild(optEmpty);
+            dois.forEach(doi => {
+              const opt = document.createElement('option');
+              opt.value = doi;
+              opt.textContent = getTitle(db[doi]) || doi;
+              targetSel.appendChild(opt);
+            });
+            targetSel.value = it.targetDoi || '';
+            targetSel.addEventListener('change', () => { it.targetDoi = targetSel.value || ''; });
+            targetRow.appendChild(targetSel);
+            card.appendChild(targetRow);
+
+            // Expected effect + type
+            const effectWrap = document.createElement('div'); effectWrap.className = 'grid-2';
+            const effCol = document.createElement('div'); effCol.className = 'row';
+            effCol.appendChild(Object.assign(document.createElement('label'), { textContent: 'Expected effect' }));
+            const effTa = Object.assign(document.createElement('textarea'), { rows: 3, value: it.expectedEffect || '' });
+            effTa.addEventListener('input', () => { it.expectedEffect = effTa.value; });
+            effCol.appendChild(effTa);
+            effectWrap.appendChild(effCol);
+
+            const typeCol = document.createElement('div'); typeCol.className = 'row';
+            typeCol.appendChild(Object.assign(document.createElement('label'), { textContent: 'Tipo reference' }));
+            const typeIn = Object.assign(document.createElement('input'), {
+              type:'text',
+              list:'modTypeList',
+              value: it.refType || '',
+              placeholder:'es. review, primary study, meta-analysis'
+            });
+            typeIn.addEventListener('input', () => { it.refType = typeIn.value; });
+            typeCol.appendChild(typeIn);
+            effectWrap.appendChild(typeCol);
+
+            card.appendChild(effectWrap);
+
+            // Reference search
+            const refRow = document.createElement('div'); refRow.className = 'row';
+            refRow.appendChild(Object.assign(document.createElement('label'), { textContent: 'Reference (cerca titolo articolo in DB)' }));
+            const refInput = Object.assign(document.createElement('input'), {
+              type:'search',
+              placeholder:'Digita parte del titolo o DOI',
+              value: it.referenceTitle || ''
+            });
+            const refInfo = document.createElement('div'); refInfo.className = 'small';
+            const refBox = document.createElement('div'); refBox.className = 'ref-suggestions'; refBox.style.display = 'none';
+
+            function updateRefInfo(){
+              if (it.referenceDoi) {
+                refInfo.textContent = `Selezionata: ${it.referenceTitle || it.referenceDoi} (${it.referenceDoi})`;
+              } else {
+                refInfo.textContent = 'Nessuna reference selezionata.';
+              }
+            }
+
+            function doSearch(){
+              const q = (refInput.value || '').toLowerCase().trim();
+              refBox.innerHTML = '';
+              if (!q) { refBox.style.display = 'none'; return; }
+              const matches = articlesIndex.filter(a =>
+                a.title.toLowerCase().includes(q) ||
+                a.doi.toLowerCase().includes(q)
+              ).slice(0, 10);
+              if (!matches.length) { refBox.style.display = 'none'; return; }
+              matches.forEach(m => {
+                const row = document.createElement('div'); row.className = 'ref-suggestion';
+                const t = document.createElement('div'); t.textContent = m.title; row.appendChild(t);
+                const d = document.createElement('div'); d.className = 'small'; d.textContent = m.doi; row.appendChild(d);
+                row.addEventListener('click', () => {
+                  it.referenceDoi = m.doi;
+                  it.referenceTitle = m.title;
+                  refInput.value = m.title;
+                  refBox.style.display = 'none';
+                  updateRefInfo();
+                });
+                refBox.appendChild(row);
+              });
+              refBox.style.display = 'block';
+            }
+
+            refInput.addEventListener('input', doSearch);
+            refInput.addEventListener('focus', doSearch);
+            document.addEventListener('click', (ev) => {
+              if (!refBox.contains(ev.target) && ev.target !== refInput) {
+                refBox.style.display = 'none';
+              }
+            });
+
+            refRow.appendChild(refInput);
+            refRow.appendChild(refBox);
+            refRow.appendChild(refInfo);
+            updateRefInfo();
+            card.appendChild(refRow);
+
+            // Tags
+            const tagsRow = document.createElement('div'); tagsRow.className = 'row';
+            tagsRow.appendChild(Object.assign(document.createElement('label'), { textContent: 'Tag (separati da virgola)' }));
+            const tagsIn = Object.assign(document.createElement('input'), {
+              type:'text',
+              placeholder:'es. habitat, management, hydropower',
+              value: it.tagsText || ''
+            });
+            const tagsChips = document.createElement('div'); tagsChips.className = 'chips';
+            function renderTags(){
+              tagsChips.innerHTML = '';
+              splitCsv(tagsIn.value).forEach(t => {
+                const c = document.createElement('span'); c.className = 'chip'; c.textContent = t; tagsChips.appendChild(c);
+              });
+            }
+            tagsIn.addEventListener('input', () => { it.tagsText = tagsIn.value; renderTags(); });
+            tagsRow.appendChild(tagsIn);
+            tagsRow.appendChild(tagsChips);
+            renderTags();
+            card.appendChild(tagsRow);
+
+            modsEl.appendChild(card);
+          });
+        }
+
+        async function save(){
+          // Raggruppa i moderators per articolo target
+          const byDoi = new Map();
+          items.forEach(it => {
+            const doi = (it.targetDoi || '').trim();
+            if (!doi) return;
+            // ignora righe completamente vuote
+            const hasContent = (it.expectedEffect && it.expectedEffect.trim()) ||
+                               (it.referenceDoi && it.referenceDoi.trim()) ||
+                               (it.refType && it.refType.trim()) ||
+                               (splitCsv(it.tagsText).length > 0);
+            if (!hasContent) return;
+            if (!byDoi.has(doi)) byDoi.set(doi, []);
+            byDoi.get(doi).push(it);
+          });
+
+          if (!byDoi.size) {
+            alert('Nessun moderator valido da salvare. Assicurati di aver selezionato un articolo target e compilato almeno qualche campo.');
+            return;
+          }
+
+          try {
+            const full = await DataService.getAll();
+            const tid = Toast ? Toast.loading('Salvataggio moderators...') : null;
+
+            for (const [doi, list] of byDoi.entries()){
+              const base = full[doi] || { DOI: doi };
+              const combined = Object.assign({}, base);
+              const existing = Array.isArray(combined.user_moderators) ? combined.user_moderators.slice() : [];
+              list.forEach(src => {
+                const tags = splitCsv(src.tagsText);
+                const now = new Date().toISOString();
+                const mod = {
+                  id: src.id || uuid(),
+                  doi,
+                  expectedEffect: (src.expectedEffect || '').trim() || null,
+                  referenceDoi: (src.referenceDoi || '').trim() || null,
+                  referenceTitle: (src.referenceTitle || '').trim() || null,
+                  refType: (src.refType || '').trim() || null,
+                  tags,
+                  createdAt: now
+                };
+                existing.push(mod);
+              });
+              combined.user_moderators = existing;
+              await DataService.saveRecord(doi, combined);
+            }
+
+            if (tid && Toast.update) {
+              Toast.update(tid, 'Moderators salvati', 'success');
+              setTimeout(() => Toast.dismiss(tid), 800);
+            }
+          } catch (e) {
+            console.error('Errore salvataggio moderators', e);
+            if (Toast && Toast.error) Toast.error('Errore salvataggio moderators');
+            alert('Errore durante il salvataggio dei moderators');
+          }
+        }
+
+        saveBtn.addEventListener('click', save);
+
+        const dl = document.createElement('datalist'); dl.id = 'modTypeList';
+        ['primary study', 'review', 'meta-analysis', 'methodological', 'case study'].forEach(v => {
+          const op = document.createElement('option'); op.value = v; dl.appendChild(op);
+        });
+        document.body.appendChild(dl);
+
+        loadAll();
+      })();
+    </script>
+  </body>
+  </html>
+
