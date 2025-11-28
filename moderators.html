@@ -441,6 +441,11 @@
               Toast.update(tid, 'Moderators salvati', 'success');
               setTimeout(() => Toast.dismiss(tid), 800);
             }
+
+            // Reset state and torna alla pagina iniziale per evitare salvataggi doppi
+            items = [];
+            renderList();
+            setTimeout(() => { window.location.href = 'index.html'; }, 300);
           } catch (e) {
             console.error('Errore salvataggio moderators', e);
             if (Toast && Toast.error) Toast.error('Errore salvataggio moderators');
