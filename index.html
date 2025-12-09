@@ -963,6 +963,34 @@
               const cnt = getTagCount(t);
               c.textContent = `${t} (${cnt})`;
               applyTagChipStyle(c, t);
+              // Clicking a tag chip toggles the corresponding tag filter
+              c.addEventListener('click', (evt) => {
+                evt.stopPropagation();
+                const norm = tagKey(t);
+                // Check if a filter with this tag (case-insensitive) is already active
+                let alreadySelected = false;
+                for (const fv of Array.from(filters.tags)) {
+                  if (tagKey(fv) === norm) { alreadySelected = true; break; }
+                }
+                if (alreadySelected) {
+                  // Remove all filters matching this tag (case-insensitive)
+                  for (const fv of Array.from(filters.tags)) {
+                    if (tagKey(fv) === norm) filters.tags.delete(fv);
+                  }
+                } else {
+                  // Find canonical display label from facets, fallback to the raw tag
+                  let display = t;
+                  if (facets && Array.isArray(facets.tags)) {
+                    const match = facets.tags.find(lbl => tagKey(lbl) === norm);
+                    if (match) display = match;
+                  }
+                  filters.tags.add(display);
+                }
+                if (!filters.modes) filters.modes = {};
+                if (!filters.modes.tags) filters.modes.tags = 'OR';
+                renderNotes();
+                renderFilters();
+              });
               chips.appendChild(c);
             }
             card.appendChild(chips);
