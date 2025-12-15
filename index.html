@@ -807,11 +807,27 @@
               URL.revokeObjectURL(url);
             }, 0);
 
-            const msgInfo = failed.length
-              ? `Esportati ${entries.length} articoli, ${failed.length} non esportati.`
-              : `Esportati ${entries.length} articoli in BibTeX.`;
-            if (window.Toast && Toast.success) Toast.success(msgInfo);
-          }
+              const msgInfo = failed.length
+                ? `Esportati ${entries.length} articoli, ${failed.length} non esportati.`
+                : `Esportati ${entries.length} articoli in BibTeX.`;
+              if (window.Toast && Toast.success) Toast.success(msgInfo);
+
+              try {
+                const nodes = [];
+                const p1 = document.createElement('div');
+                p1.textContent = `Articoli con DOI validi: ${pairs.length}`;
+                const p2 = document.createElement('div');
+                p2.textContent = `Articoli esportati in BibTeX: ${entries.length}`;
+                if (failed.length) {
+                  const p3 = document.createElement('div');
+                  p3.textContent = `Non esportati: ${failed.length}`;
+                  nodes.push(p1, p2, p3);
+                } else {
+                  nodes.push(p1, p2);
+                }
+                openOverlay('Export BibTeX completato', nodes);
+              } catch(_) {}
+            }
 
           async function loadAll() {
             const tid = (window.Toast && Toast.loading) ? Toast.loading('Caricamento dati...') : null;
