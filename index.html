@@ -186,6 +186,7 @@
       <div></div>
       <div>
         <a class="btn" href="add-doi.html">Aggiungi DOI</a>
+        <button id="exportBibtexBtn" class="btn" type="button">Scarica BibTeX</button>
         <a class="btn" href="variabili.html">Variabili</a>
         <a class="btn" href="variabili-tabella.html">Tabella variabili</a>
         <a class="btn" href="grafici.html">Tabella grafici</a>
@@ -276,33 +277,35 @@
     <!-- Popup disabilitato: gestione via pagine dedicate -->
 
     <script>
-      (function () {
-        const notesContainer = document.getElementById('notesContainer');
-        const filterTitleEl = document.getElementById('filterTitle');
-        const filtersChips = document.getElementById('filtersChips');
-        const filtersEl = document.querySelector('section.filters');
-        const filtersCollapseBtn = document.getElementById('filtersCollapseBtn');
-        // Inject toggles in filters header (view + ordering)
-        const filtersHeader = document.querySelector('.filters .filters-header');
-        let groupToggleBtn = null;
-        let orderToggleBtn = null;
-        const advDropdown = document.getElementById('advDropdown');
-        const advBtn = document.getElementById('advBtn');
-        const advMenu = document.getElementById('advMenu');
-        const typeMulti = document.getElementById('typeMulti');
-        const tagsMulti = document.getElementById('tagsMulti');
-        const animalsMulti = document.getElementById('animalsMulti');
-        const methodsMulti = document.getElementById('methodsMulti');
-        const typeLogic = document.getElementById('typeLogic');
-        const tagsLogic = document.getElementById('tagsLogic');
-        const animalsLogic = document.getElementById('animalsLogic');
-        const methodsLogic = document.getElementById('methodsLogic');
-        const applyAdv = document.getElementById('applyAdv');
-        const clearAdv = document.getElementById('clearAdv');
+        (function () {
+          const notesContainer = document.getElementById('notesContainer');
+          const filterTitleEl = document.getElementById('filterTitle');
+          const filtersChips = document.getElementById('filtersChips');
+          const filtersEl = document.querySelector('section.filters');
+          const filtersCollapseBtn = document.getElementById('filtersCollapseBtn');
+          // Inject toggles in filters header (view + ordering)
+          const filtersHeader = document.querySelector('.filters .filters-header');
+          let groupToggleBtn = null;
+          let orderToggleBtn = null;
+          const advDropdown = document.getElementById('advDropdown');
+          const advBtn = document.getElementById('advBtn');
+          const advMenu = document.getElementById('advMenu');
+          const typeMulti = document.getElementById('typeMulti');
+          const tagsMulti = document.getElementById('tagsMulti');
+          const animalsMulti = document.getElementById('animalsMulti');
+          const methodsMulti = document.getElementById('methodsMulti');
+          const typeLogic = document.getElementById('typeLogic');
+          const tagsLogic = document.getElementById('tagsLogic');
+          const animalsLogic = document.getElementById('animalsLogic');
+          const methodsLogic = document.getElementById('methodsLogic');
+          const applyAdv = document.getElementById('applyAdv');
+          const clearAdv = document.getElementById('clearAdv');
+          const exportBibtexBtn = document.getElementById('exportBibtexBtn');
 
-        let db = {};
-        let doiIndex = new Map();
-        let crossrefCache = new Map();
+          let db = {};
+          let doiIndex = new Map();
+          let crossrefCache = new Map();
+          let crossrefWorkCache = new Map();
         const TYPE_COLOR_KEY = 'typeColors.v1';
         const COLLAPSE_KEY = 'notesCollapsed.v1';
         const FILTERS_COLLAPSE_KEY = 'filtersCollapsed.v1';
@@ -340,27 +343,27 @@
           selectEl.__multiToggleEnabled = true;
         }
 
-        function loadTypeColors() {
+          function loadTypeColors() {
           try { return JSON.parse(localStorage.getItem(TYPE_COLOR_KEY) || '{}') || {}; } catch (_) { return {}; }
         }
         function saveTypeColors(map) {
           try { localStorage.setItem(TYPE_COLOR_KEY, JSON.stringify(map)); } catch (_) {}
         }
-        function randomPastel() {
-          const h = Math.floor(Math.random() * 360);
-          const s = 70; // percent
-          const l = 88; // percent
-          return `hsl(${h} ${s}% ${l}%)`;
-        }
-        function getTypeColor(type) {
-          if (!type) return '#d1d5db';
-          const map = loadTypeColors();
-          if (!map[type]) {
-            map[type] = randomPastel();
-            saveTypeColors(map);
+          function randomPastel() {
+            const h = Math.floor(Math.random() * 360);
+            const s = 70; // percent
+            const l = 88; // percent
+            return `hsl(${h} ${s}% ${l}%)`;
           }
-          return map[type];
-        }
+          function getTypeColor(type) {
+            if (!type) return '#d1d5db';
+            const map = loadTypeColors();
+            if (!map[type]) {
+              map[type] = randomPastel();
+              saveTypeColors(map);
+            }
+            return map[type];
+          }
 
         function clampImportanza(v){
           const n = parseInt(v, 10);
@@ -567,43 +570,263 @@
             return core ? core.toLowerCase() : '';
           } catch(_) { return ''; }
         }
-        function parseReferences(str){
-          const parts = String(str||'').split(';').map(s => normalizeDoi(s)).filter(Boolean);
-          return Array.from(new Set(parts));
-        }
-
-        async function fetchCrossrefTitle(doi){
-          const key = normalizeDoi(doi);
-          if (!key) return null;
-          if (crossrefCache.has(key)) return crossrefCache.get(key);
-          try {
-            const res = await fetch(`https://api.crossref.org/works/${encodeURIComponent(key)}`, { headers: { 'Accept':'application/json' } });
-            if (!res.ok) throw new Error('HTTP '+res.status);
-            const data = await res.json();
-            const msg = data && data.message ? data.message : data;
-            const title = Array.isArray(msg && msg.title) ? (msg.title[0] || key) : (msg && msg.title) || key;
-            crossrefCache.set(key, title);
-            return title;
-          } catch (_) {
-            crossrefCache.set(key, null);
-            return null;
+          function parseReferences(str){
+            const parts = String(str||'').split(';').map(s => normalizeDoi(s)).filter(Boolean);
+            return Array.from(new Set(parts));
           }
-        }
-
-        async function loadAll() {
-          const tid = (window.Toast && Toast.loading) ? Toast.loading('Caricamento dati...') : null;
-          try {
-            db = await DataService.getAll();
-            if (tid && Toast.update) { Toast.update(tid, 'Dati caricati', 'success'); setTimeout(()=>Toast.dismiss(tid), 800); }
-          } catch (e) {
-            console.warn('[index] Impossibile caricare dal GAS:', e);
-            if (window.Toast && Toast.error) Toast.error('Errore nel caricamento dati');
-            db = {};
+  
+          async function fetchCrossrefTitle(doi){
+            const key = normalizeDoi(doi);
+            if (!key) return null;
+            if (crossrefCache.has(key)) return crossrefCache.get(key);
+            try {
+              const res = await fetch(`https://api.crossref.org/works/${encodeURIComponent(key)}`, { headers: { 'Accept':'application/json' } });
+              if (!res.ok) throw new Error('HTTP '+res.status);
+              const data = await res.json();
+              const msg = data && data.message ? data.message : data;
+              const title = Array.isArray(msg && msg.title) ? (msg.title[0] || key) : (msg && msg.title) || key;
+              crossrefCache.set(key, title);
+              return title;
+            } catch (_) {
+              crossrefCache.set(key, null);
+              return null;
+            }
           }
-          computeFacets();
-          renderFilters();
-          renderNotes();
-        }
+
+          async function fetchCrossrefWork(doi){
+            const key = normalizeDoi(doi);
+            if (!key) return null;
+            if (crossrefWorkCache.has(key)) return crossrefWorkCache.get(key);
+            try {
+              const res = await fetch(`https://api.crossref.org/works/${encodeURIComponent(key)}`, { headers: { 'Accept':'application/json' } });
+              if (!res.ok) throw new Error('HTTP '+res.status);
+              const data = await res.json();
+              const msg = data && data.message ? data.message : data;
+              crossrefWorkCache.set(key, msg);
+              return msg;
+            } catch (_) {
+              crossrefWorkCache.set(key, null);
+              return null;
+            }
+          }
+
+          function escapeBibtexValue(value){
+            if (value == null) return '';
+            return String(value)
+              .replace(/<[^>]+>/g, ' ')          // rimuovi eventuali tag HTML
+              .replace(/[\u201C\u201D]/g, '"')   // virgolette tipografiche
+              .replace(/[\u2018\u2019]/g, "'")
+              .replace(/\\/g, '\\\\')
+              .replace(/{/g, '\\{')
+              .replace(/}/g, '\\}')
+              .replace(/\s+/g, ' ')
+              .trim();
+          }
+
+          function extractYearFromMessage(msg){
+            const pick = (obj) => {
+              try {
+                const p = obj && obj['date-parts'] && obj['date-parts'][0];
+                if (Array.isArray(p) && p[0]) return String(p[0]);
+              } catch(_) {}
+              return '';
+            };
+            return pick(msg && msg.issued) ||
+                   pick(msg && msg['published-print']) ||
+                   pick(msg && msg['published-online']) ||
+                   pick(msg && msg.created) ||
+                   '';
+          }
+
+          function buildBibtexKey(msg, normDoi, usedKeys){
+            let keyBase = '';
+            let firstFamily = '';
+            try {
+              const authors = Array.isArray(msg && msg.author) ? msg.author : [];
+              if (authors.length && authors[0].family) {
+                firstFamily = String(authors[0].family).replace(/\s+/g,'');
+              }
+            } catch(_) {}
+            const year = extractYearFromMessage(msg);
+            const titleRaw = Array.isArray(msg && msg.title) ? (msg.title[0] || '') : (msg && msg.title) || '';
+            const titleSlug = String(titleRaw).toLowerCase().replace(/<[^>]+>/g,' ')
+              .replace(/[^a-z0-9]+/gi,' ')
+              .trim()
+              .split(/\s+/)
+              .slice(0,4)
+              .join('_');
+            if (firstFamily && year) keyBase = `${firstFamily}_${year}`;
+            else if (firstFamily) keyBase = firstFamily;
+            else if (normDoi) keyBase = normDoi.replace(/[^a-z0-9]+/gi,'_');
+            if (titleSlug) keyBase = keyBase ? `${keyBase}_${titleSlug}` : titleSlug;
+            if (!keyBase) keyBase = 'ref';
+            let key = keyBase;
+            if (usedKeys[key]) {
+              let i = 2;
+              while (usedKeys[`${keyBase}_${i}`]) i++;
+              key = `${keyBase}_${i}`;
+            }
+            usedKeys[key] = true;
+            return key;
+          }
+
+          function crossrefToBibtex(msg, normDoi, entry, usedKeys){
+            if (!msg && !entry) return '';
+            const type = (msg && msg.type) || 'misc';
+            let bibType = 'misc';
+            if (type === 'journal-article') bibType = 'article';
+            else if (type === 'book') bibType = 'book';
+            else if (type === 'book-chapter') bibType = 'incollection';
+            else if (type === 'proceedings-article') bibType = 'inproceedings';
+
+            const authorsArr = Array.isArray(msg && msg.author) ? msg.author : [];
+            const authors = authorsArr.map(a => {
+              const given = (a && a.given) ? String(a.given).trim() : '';
+              const family = (a && a.family) ? String(a.family).trim() : '';
+              if (family && given) return `${family}, ${given}`;
+              return family || given || '';
+            }).filter(Boolean).join(' and ');
+
+            const title = Array.isArray(msg && msg.title)
+              ? (msg.title[0] || '')
+              : (msg && msg.title) || (entry && Array.isArray(entry.title) ? entry.title[0] : entry && entry.title) || '';
+
+            const year = extractYearFromMessage(msg);
+
+            const container = Array.isArray(msg && msg['container-title'])
+              ? (msg['container-title'][0] || '')
+              : (msg && msg['container-title']) || '';
+
+            const volume = msg && msg.volume;
+            const number = (msg && (msg.issue || msg.number)) || '';
+            const pages = msg && msg.page;
+            const publisher = msg && msg.publisher;
+            const doi = (msg && (msg.DOI || msg.doi)) || normDoi || '';
+            const url = (msg && msg.URL) || (doi ? `https://doi.org/${doi}` : '');
+
+            const fields = [];
+            if (authors) fields.push(['author', authors]);
+            if (title) fields.push(['title', title]);
+            if (year) fields.push(['year', year]);
+            if (container) {
+              if (bibType === 'article') fields.push(['journal', container]);
+              else fields.push(['booktitle', container]);
+            }
+            if (volume) fields.push(['volume', volume]);
+            if (number) fields.push(['number', number]);
+            if (pages) fields.push(['pages', pages]);
+            if (publisher) fields.push(['publisher', publisher]);
+            if (doi) fields.push(['doi', doi]);
+            if (url) fields.push(['url', url]);
+
+            const key = buildBibtexKey(msg || {}, normDoi, usedKeys || {});
+            const lines = [];
+            lines.push(`@${bibType}{${key},`);
+            for (let i = 0; i < fields.length; i++) {
+              const [name, value] = fields[i];
+              const escaped = escapeBibtexValue(value);
+              if (!escaped) continue;
+              const suffix = (i === fields.length - 1) ? '' : ',';
+              lines.push(`  ${name} = {${escaped}}${suffix}`);
+            }
+            lines.push('}');
+            return lines.join('\n');
+          }
+
+          async function exportBibtex(){
+            if (!db || !Object.keys(db).length) {
+              await loadAll();
+            }
+            const pairs = [];
+            const seen = new Set();
+            Object.keys(db || {}).forEach(key => {
+              if (!key || key.startsWith('manual:')) return;
+              const norm = normalizeDoi(key);
+              if (!norm || seen.has(norm)) return;
+              seen.add(norm);
+              pairs.push([norm, key]);
+            });
+            if (!pairs.length) {
+              if (window.Toast && Toast.info) Toast.info('Nessun DOI valido da esportare.');
+              return;
+            }
+            if (window.Toast && Toast.info) Toast.info(`Preparazione export BibTeX per ${pairs.length} articoli...`);
+            showLoadingOverlay('Generazione file BibTeX...');
+            const usedKeys = {};
+            const entries = [];
+            const failed = [];
+            const concurrency = 5;
+            let index = 0;
+
+            async function worker(){
+              while (true) {
+                let currentIndex;
+                if (index >= pairs.length) return;
+                currentIndex = index++;
+                const [norm, key] = pairs[currentIndex];
+                try {
+                  const msg = await fetchCrossrefWork(norm);
+                  if (!msg) {
+                    failed.push(key);
+                    continue;
+                  }
+                  const entry = db[key] || null;
+                  const bib = crossrefToBibtex(msg, norm, entry, usedKeys);
+                  if (bib) entries.push(bib);
+                } catch (e) {
+                  console.warn('Errore export BibTeX per DOI', key, e);
+                  failed.push(key);
+                }
+              }
+            }
+
+            const workers = [];
+            const workersCount = Math.min(concurrency, pairs.length);
+            for (let i = 0; i < workersCount; i++) workers.push(worker());
+            await Promise.all(workers);
+
+            hideLoadingOverlay();
+
+            if (!entries.length) {
+              if (window.Toast && Toast.error) Toast.error('Nessun articolo esportato in BibTeX.');
+              return;
+            }
+
+            const content = entries.join('\n\n') + '\n';
+            const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            const now = new Date();
+            const stamp = now.toISOString().slice(0,10).replace(/-/g,'');
+            a.href = url;
+            a.download = `articles_${stamp}.bib`;
+            document.body.appendChild(a);
+            a.click();
+            setTimeout(() => {
+              document.body.removeChild(a);
+              URL.revokeObjectURL(url);
+            }, 0);
+
+            const msgInfo = failed.length
+              ? `Esportati ${entries.length} articoli, ${failed.length} non esportati.`
+              : `Esportati ${entries.length} articoli in BibTeX.`;
+            if (window.Toast && Toast.success) Toast.success(msgInfo);
+          }
+
+          async function loadAll() {
+            const tid = (window.Toast && Toast.loading) ? Toast.loading('Caricamento dati...') : null;
+            try {
+              db = await DataService.getAll();
+              if (tid && Toast.update) { Toast.update(tid, 'Dati caricati', 'success'); setTimeout(()=>Toast.dismiss(tid), 800); }
+            } catch (e) {
+              console.warn('[index] Impossibile caricare dal GAS:', e);
+              if (window.Toast && Toast.error) Toast.error('Errore nel caricamento dati');
+              db = {};
+            }
+            computeFacets();
+            renderFilters();
+            renderNotes();
+          }
 
         function computeFacets() {
           const types = new Set();
@@ -1702,6 +1925,12 @@
 
         // Initial load
         loadAll();
+        if (exportBibtexBtn) {
+          exportBibtexBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            exportBibtex();
+          });
+        }
 
         // Nessun listener messaggi dal popup: popup disabilitato
       })();
