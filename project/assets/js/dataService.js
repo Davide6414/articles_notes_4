@@ -14,6 +14,8 @@
       };
       // Preserve custom 'cartella' field if provided
       if (typeof r.cartella === 'string') out.cartella = r.cartella;
+      // Preserve Crossref-style author array when provided (for caching autori)
+      if (Array.isArray(r.author)) out.author = r.author;
       if (Array.isArray(r.user_notes)) out.user_notes = r.user_notes;
       if (Array.isArray(r.user_glossario)) out.user_glossario = r.user_glossario;
       if (r.dettagli && typeof r.dettagli === 'object') out.dettagli = r.dettagli;

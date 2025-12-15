@@ -1,0 +1,374 @@
+<!doctype html>
+<html lang="it">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Autori (conteggio articoli)</title>
+    <link rel="stylesheet" href="project/assets/css/style.css" />
+    <script src="project/assets/js/dataService.js"></script>
+    <script src="project/assets/js/toast.js"></script>
+    <style>
+      :root { --gap: 12px; --border: 1px solid #e5e7eb; --radius: 12px; }
+      body { margin: 2rem; font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; color: #111827; }
+      a { color: #2563eb; text-decoration: none; }
+      a:hover { text-decoration: underline; }
+      .header { display: grid; grid-template-columns: 1fr auto; gap: 12px; align-items: center; margin-bottom: 16px; }
+      .title { margin: 0; font-size: 22px; }
+      .sub { color: #6b7280; font-size: 13px; }
+      .toolbar { display: flex; gap: 8px; align-items: center; }
+      .btn { font-size: 14px; padding: 8px 12px; border-radius: 8px; border: 1px solid #d0d0d0; background: #fff; cursor: pointer; }
+      .btn:hover { background: #f6f6f6; }
+      .primary { background: #2563eb; border-color: #2563eb; color: #fff; }
+      .panel { padding: 12px; border: var(--border); border-radius: var(--radius); background: #fff; display: grid; gap: 10px; }
+      .layout { display: grid; grid-template-columns: 1fr; gap: 16px; }
+      .grid-2 { display: grid; grid-template-columns: minmax(260px, 1.2fr) minmax(260px, 1.5fr); gap: 12px; align-items: flex-start; }
+      label { font-size: 12px; color: #374151; }
+      input[type="search"] { width: 100%; padding: 8px 10px; border: 1px solid #d0d0d0; border-radius: 8px; font-size: 14px; box-sizing: border-box; }
+      table { width: 100%; border-collapse: collapse; }
+      th, td { border: 1px solid #e5e7eb; padding: 8px 10px; vertical-align: top; }
+      th { background: #f9fafb; text-align: left; }
+      .small { font-size: 12px; color: #6b7280; }
+      .muted { color: #6b7280; }
+      .nowrap { white-space: nowrap; }
+      .table-wrap { max-height: 70vh; overflow-y: auto; }
+      .authors-table tbody tr { cursor: pointer; }
+      .authors-table tbody tr:hover { background: #f3f4ff; }
+      .authors-table tbody tr.selected { background: #e0ecff; }
+      .bar-wrap { position: relative; height: 16px; background: #f3f4f6; border-radius: 9999px; overflow: hidden; }
+      .bar { position: absolute; left: 0; top: 0; bottom: 0; background: #60a5fa; }
+      .bar-label { position: absolute; left: 6px; top: 50%; transform: translateY(-50%); font-size: 11px; color: #111827; }
+      .articles-list { list-style: none; padding: 0; margin: 0; display: grid; gap: 6px; }
+      .article-item { border: 1px solid #e5e7eb; border-radius: 10px; padding: 8px; background: #f9fafb; }
+      .article-title { font-size: 14px; }
+      .article-doi { font-size: 12px; color: #6b7280; word-break: break-all; }
+      @media (max-width: 768px) {
+        body { margin: 1rem; }
+        .grid-2 { grid-template-columns: 1fr; }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="header">
+      <div>
+        <h1 class="title">Autori</h1>
+        <div class="sub">Conteggio articoli per autore</div>
+      </div>
+      <div class="toolbar">
+        <a class="btn" href="index.html">↩ Torna</a>
+        <button id="refreshBtn" class="btn">Ricalcola</button>
+      </div>
+    </div>
+
+    <div class="layout">
+      <div class="panel">
+        <div class="row">
+          <label for="searchAuthor">Cerca autore</label>
+          <input id="searchAuthor" type="search" placeholder="Nome o ORCID" />
+        </div>
+        <div id="status" class="small muted"></div>
+      </div>
+
+      <div class="grid-2">
+        <div class="panel">
+          <h3>Autori</h3>
+          <div class="table-wrap">
+            <table class="authors-table">
+              <thead>
+                <tr>
+                  <th>Autore</th>
+                  <th class="nowrap"># articoli</th>
+                  <th>Grafico</th>
+                </tr>
+              </thead>
+              <tbody id="authorsTbody"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="panel">
+          <h3>Articoli autore selezionato</h3>
+          <div id="selectedInfo" class="small muted"></div>
+          <ul id="articlesList" class="articles-list"></ul>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      (function(){
+        const searchInput = document.getElementById('searchAuthor');
+        const statusEl = document.getElementById('status');
+        const authorsTbody = document.getElementById('authorsTbody');
+        const refreshBtn = document.getElementById('refreshBtn');
+        const selectedInfo = document.getElementById('selectedInfo');
+        const articlesList = document.getElementById('articlesList');
+
+        let db = {};
+        let authorsMap = new Map(); // id -> { id, displayName, orcid, dois: [] }
+        let selectedId = null;
+        let maxCount = 0;
+
+        function getTitle(entry) {
+          if (!entry) return '';
+          const t = entry.title;
+          if (Array.isArray(t) && t.length) return t.join(' - ');
+          if (typeof t === 'string') return t;
+          return '';
+        }
+
+        function normalizeAuthor(raw) {
+          if (!raw) return null;
+          const given = (raw.given || '').trim();
+          const family = (raw.family || '').trim();
+          const orcidRaw = typeof raw.ORCID === 'string' ? raw.ORCID.trim() : '';
+          let orcid = '';
+          if (orcidRaw) {
+            const m = orcidRaw.match(/(\d{4}-\d{4}-\d{4}-\d{3}[0-9Xx])/);
+            if (m) orcid = m[1];
+          }
+          const parts = [];
+          if (family) parts.push(family);
+          if (given) parts.push(given);
+          const displayName = parts.join(', ') || (orcid ? ('ORCID ' + orcid) : 'Autore sconosciuto');
+          let key;
+          if (orcid) {
+            key = 'orcid:' + orcid;
+          } else {
+            const norm = displayName.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+            key = 'name:' + norm;
+          }
+          return { key, displayName, orcid };
+        }
+
+        function addAuthorOccurrence(doi, entry, rawAuthor) {
+          const norm = normalizeAuthor(rawAuthor);
+          if (!norm) return;
+          let agg = authorsMap.get(norm.key);
+          if (!agg) {
+            agg = { id: norm.key, displayName: norm.displayName, orcid: norm.orcid || null, dois: [] };
+            authorsMap.set(norm.key, agg);
+          }
+          if (!agg.dois.includes(doi)) {
+            agg.dois.push(doi);
+            if (agg.dois.length > maxCount) maxCount = agg.dois.length;
+          }
+        }
+
+        function mergeAuthorsFromEntry(doi, entry, authors) {
+          const arr = Array.isArray(authors) ? authors : [];
+          if (!arr.length) return;
+          for (const a of arr) {
+            addAuthorOccurrence(doi, entry, a);
+          }
+        }
+
+        async function fetchCrossrefAuthors(doi) {
+          const url = `https://api.crossref.org/works/${encodeURIComponent(doi)}`;
+          const res = await fetch(url, { headers: { 'Accept': 'application/json' } });
+          if (!res.ok) throw new Error('HTTP ' + res.status);
+          const data = await res.json();
+          const msg = data && data.message ? data.message : data;
+          const authors = Array.isArray(msg.author) ? msg.author : [];
+          return authors;
+        }
+
+        async function cacheAuthorsToDb(doi, authors) {
+          try {
+            const minimal = (Array.isArray(authors) ? authors : []).map(a => ({
+              ORCID: typeof a.ORCID === 'string' ? a.ORCID : undefined,
+              given: a.given || '',
+              family: a.family || '',
+            }));
+            if (!minimal.length) return;
+            await DataService.saveRecord(doi, { author: minimal });
+          } catch (e) {
+            console.warn('Errore caching autori nel DB', e);
+          }
+        }
+
+        async function buildAuthorsStats() {
+          authorsMap = new Map();
+          maxCount = 0;
+          const dois = Object.keys(db).sort((a, b) => a.localeCompare(b));
+          const missing = [];
+
+          statusEl.textContent = 'Analisi del database articoli...';
+
+          for (const doi of dois) {
+            const entry = db[doi];
+            if (!entry) continue;
+            const authors = Array.isArray(entry.author) && entry.author.length ? entry.author : null;
+            if (authors) {
+              mergeAuthorsFromEntry(doi, entry, authors);
+            } else if (!doi.startsWith('manual:')) {
+              missing.push(doi);
+            }
+          }
+
+          if (missing.length) {
+            let done = 0;
+            for (const doi of missing) {
+              done += 1;
+              statusEl.textContent = `Recupero autori da Crossref (${done}/${missing.length})...`;
+              try {
+                const authors = await fetchCrossrefAuthors(doi);
+                if (authors && authors.length) {
+                  const entry = db[doi] || { title: [doi] };
+                  mergeAuthorsFromEntry(doi, entry, authors);
+                  cacheAuthorsToDb(doi, authors);
+                }
+              } catch (e) {
+                console.warn('Errore recupero autori per DOI', doi, e);
+              }
+            }
+          }
+
+          const totalAuthors = authorsMap.size;
+          const totalArticles = dois.length;
+          statusEl.textContent = totalAuthors
+            ? `Trovati ${totalAuthors} autori su ${totalArticles} articoli.`
+            : 'Nessun autore trovato nel database.';
+
+          if (!selectedId) {
+            // seleziona l'autore più prolifico come predefinito, se esiste
+            let best = null;
+            authorsMap.forEach(a => {
+              if (!best || a.dois.length > best.dois.length) best = a;
+            });
+            selectedId = best ? best.id : null;
+          } else if (!authorsMap.has(selectedId)) {
+            selectedId = null;
+          }
+
+          renderAuthorsTable();
+          renderArticlesForSelected();
+        }
+
+        function renderAuthorsTable() {
+          authorsTbody.innerHTML = '';
+          const query = (searchInput.value || '').trim().toLowerCase();
+          const list = Array.from(authorsMap.values());
+          let filtered = list;
+          if (query) {
+            filtered = list.filter(a =>
+              a.displayName.toLowerCase().includes(query) ||
+              (a.orcid && a.orcid.toLowerCase().includes(query))
+            );
+          }
+          filtered.sort((a, b) => {
+            const diff = b.dois.length - a.dois.length;
+            if (diff !== 0) return diff;
+            return a.displayName.localeCompare(b.displayName, 'it', { sensitivity: 'base' });
+          });
+          if (!filtered.length) {
+            const tr = document.createElement('tr');
+            const td = document.createElement('td');
+            td.colSpan = 3;
+            td.className = 'small muted';
+            td.textContent = 'Nessun autore corrispondente al filtro.';
+            tr.appendChild(td);
+            authorsTbody.appendChild(tr);
+            return;
+          }
+          filtered.forEach(a => {
+            const tr = document.createElement('tr');
+            tr.dataset.id = a.id;
+            if (a.id === selectedId) tr.classList.add('selected');
+
+            const tdName = document.createElement('td');
+            tdName.textContent = a.displayName;
+            tr.appendChild(tdName);
+
+            const tdCount = document.createElement('td');
+            tdCount.className = 'nowrap';
+            tdCount.textContent = String(a.dois.length);
+            tr.appendChild(tdCount);
+
+            const tdBar = document.createElement('td');
+            const wrap = document.createElement('div');
+            wrap.className = 'bar-wrap';
+            const bar = document.createElement('div');
+            bar.className = 'bar';
+            const ratio = maxCount > 0 ? (a.dois.length / maxCount) : 0;
+            bar.style.width = (ratio * 100).toFixed(0) + '%';
+            const label = document.createElement('span');
+            label.className = 'bar-label';
+            label.textContent = String(a.dois.length);
+            wrap.appendChild(bar);
+            wrap.appendChild(label);
+            tdBar.appendChild(wrap);
+            tr.appendChild(tdBar);
+
+            tr.addEventListener('click', function(){
+              selectedId = a.id;
+              renderAuthorsTable();
+              renderArticlesForSelected();
+            });
+
+            authorsTbody.appendChild(tr);
+          });
+        }
+
+        function renderArticlesForSelected() {
+          articlesList.innerHTML = '';
+          if (!selectedId) {
+            selectedInfo.textContent = 'Seleziona un autore dalla lista per vedere i suoi articoli.';
+            return;
+          }
+          const author = authorsMap.get(selectedId);
+          if (!author) {
+            selectedInfo.textContent = 'Autore non trovato.';
+            return;
+          }
+          const count = author.dois.length;
+          selectedInfo.textContent = `${author.displayName} – ${count} articolo${count === 1 ? '' : 'i'}`;
+          const sortedDois = [...author.dois].sort((a, b) => a.localeCompare(b));
+          sortedDois.forEach(doi => {
+            const entry = db[doi] || null;
+            const title = getTitle(entry) || doi;
+            const li = document.createElement('li');
+            li.className = 'article-item';
+
+            const titleEl = document.createElement('div');
+            titleEl.className = 'article-title';
+            const link = document.createElement('a');
+            link.href = `details.html?doi=${encodeURIComponent(doi)}`;
+            link.textContent = title;
+            titleEl.appendChild(link);
+
+            const doiEl = document.createElement('div');
+            doiEl.className = 'article-doi';
+            doiEl.textContent = doi;
+
+            li.appendChild(titleEl);
+            li.appendChild(doiEl);
+            articlesList.appendChild(li);
+          });
+        }
+
+        async function loadAll() {
+          statusEl.textContent = 'Caricamento database articoli...';
+          try {
+            db = await DataService.getAll();
+          } catch (e) {
+            console.error('Errore caricamento DB', e);
+            db = {};
+            statusEl.textContent = 'Errore nel caricamento del database.';
+            return;
+          }
+          await buildAuthorsStats();
+        }
+
+        refreshBtn.addEventListener('click', function(){
+          loadAll();
+        });
+
+        searchInput.addEventListener('input', function(){
+          renderAuthorsTable();
+        });
+
+        loadAll();
+      })();
+    </script>
+  </body>
+</html>
+
