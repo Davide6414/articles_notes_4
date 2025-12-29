@@ -290,6 +290,7 @@
           const advDropdown = document.getElementById('advDropdown');
           const advBtn = document.getElementById('advBtn');
           const advMenu = document.getElementById('advMenu');
+          let advGlobalListenersAttached = false;
           const typeMulti = document.getElementById('typeMulti');
           const tagsMulti = document.getElementById('tagsMulti');
           const animalsMulti = document.getElementById('animalsMulti');
@@ -303,26 +304,106 @@
           const exportBibtexBtn = document.getElementById('exportBibtexBtn');
 
           let db = {};
+          const DB_CACHE_TTL_MS = 60000;
+          let dbLastFetchAt = 0;
+          let dbFetchPromise = null;
           let doiIndex = new Map();
           let crossrefCache = new Map();
           let crossrefWorkCache = new Map();
-        const TYPE_COLOR_KEY = 'typeColors.v1';
-        const COLLAPSE_KEY = 'notesCollapsed.v1';
-        const FILTERS_COLLAPSE_KEY = 'filtersCollapsed.v1';
-        const FOLDERS_COLLAPSE_KEY = 'foldersCollapsed.v1';
-        const ORDER_KEY = 'orderByColor.v1';
-        let facets = { types: [], tags: [], animals: [], methods: [] };
-        const GROUP_BY_KEY = 'groupByFolder.v1';
-        const LAST_FOLDER_KEY = 'lastFolderUsed.v1';
-        function loadGroupByFolder(){ try { return localStorage.getItem(GROUP_BY_KEY) === '1'; } catch(_) { return false; } }
-        function saveGroupByFolder(v){ try { localStorage.setItem(GROUP_BY_KEY, v ? '1':'0'); } catch(_){} }
-        function getLastFolder(){ try { return localStorage.getItem(LAST_FOLDER_KEY) || ''; } catch(_) { return ''; } }
-        function setLastFolder(v){ try { if (v) localStorage.setItem(LAST_FOLDER_KEY, v); } catch(_){} }
-        let groupByFolder = loadGroupByFolder();
-        function loadOrderByColor(){ try { return localStorage.getItem(ORDER_KEY) === '1'; } catch(_) { return false; } }
-        function saveOrderByColor(v){ try { localStorage.setItem(ORDER_KEY, v ? '1':'0'); } catch(_){} }
-        let orderByColor = loadOrderByColor();
-        let filters = { title: '', types: new Set(), tags: new Set(), animals: new Set(), methods: new Set(), modes: { types: 'OR', tags: 'OR', animals: 'OR', methods: 'OR' } };
+          const TYPE_COLOR_KEY = 'typeColors.v1';
+          const COLLAPSE_KEY = 'notesCollapsed.v1';
+          const FILTERS_COLLAPSE_KEY = 'filtersCollapsed.v1';
+          const FOLDERS_COLLAPSE_KEY = 'foldersCollapsed.v1';
+          const ORDER_KEY = 'orderByColor.v1';
+          const OFFLINE_DB_KEY = 'notesDbSnapshot.v1';
+          const detailsTextCache = new Map();
+          let facets = { types: [], tags: [], animals: [], methods: [] };
+          const GROUP_BY_KEY = 'groupByFolder.v1';
+          const LAST_FOLDER_KEY = 'lastFolderUsed.v1';
+          function loadGroupByFolder(){ try { return localStorage.getItem(GROUP_BY_KEY) === '1'; } catch(_) { return false; } }
+          function saveGroupByFolder(v){ try { localStorage.setItem(GROUP_BY_KEY, v ? '1':'0'); } catch(_){} }
+          function getLastFolder(){ try { return localStorage.getItem(LAST_FOLDER_KEY) || ''; } catch(_) { return ''; } }
+          function setLastFolder(v){ try { if (v) localStorage.setItem(LAST_FOLDER_KEY, v); } catch(_){} }
+          let groupByFolder = loadGroupByFolder();
+          function loadOrderByColor(){ try { return localStorage.getItem(ORDER_KEY) === '1'; } catch(_) { return false; } }
+          function saveOrderByColor(v){ try { localStorage.setItem(ORDER_KEY, v ? '1':'0'); } catch(_){} }
+          let orderByColor = loadOrderByColor();
+          let filters = { title: '', types: new Set(), tags: new Set(), animals: new Set(), methods: new Set(), modes: { types: 'OR', tags: 'OR', animals: 'OR', methods: 'OR' } };
+
+          function attachAdvGlobalListeners() {
+            if (advGlobalListenersAttached) return;
+            advGlobalListenersAttached = true;
+            document.addEventListener('click', (e) => {
+              if (!advDropdown) return;
+              const target = e.target;
+              try {
+                if (!advDropdown.contains(target)) advDropdown.classList.remove('open');
+              } catch (_) {}
+            });
+            document.addEventListener('keydown', (e) => {
+              if (e.key !== 'Escape') return;
+              try {
+                if (advDropdown) advDropdown.classList.remove('open');
+                if (advMenu) advMenu.classList.remove('expanded');
+              } catch (_) {}
+            });
+          }
+
+          function loadOfflineSnapshot() {
+            try {
+              const raw = localStorage.getItem(OFFLINE_DB_KEY);
+              if (!raw) return null;
+              const parsed = JSON.parse(raw);
+              return (parsed && typeof parsed === 'object') ? parsed : null;
+            } catch (_) {
+              return null;
+            }
+          }
+
+          function saveOfflineSnapshot(data) {
+            try {
+              if (!data || typeof data !== 'object') {
+                localStorage.removeItem(OFFLINE_DB_KEY);
+                return;
+              }
+              localStorage.setItem(OFFLINE_DB_KEY, JSON.stringify(data));
+            } catch (_) {}
+          }
+
+          function debounce(fn, delay) {
+            let timer = null;
+            return function debounced(...args) {
+              if (timer) clearTimeout(timer);
+              const ctx = this;
+              timer = setTimeout(() => fn.apply(ctx, args), delay);
+            };
+          }
+
+          async function getAllWithCache(options) {
+            const force = !!(options && options.force);
+            const now = Date.now();
+            const hasDb = db && Object.keys(db).length > 0;
+            if (!force && hasDb && dbLastFetchAt && (now - dbLastFetchAt) < DB_CACHE_TTL_MS) {
+              return db;
+            }
+            if (!force && dbFetchPromise) return dbFetchPromise;
+            dbFetchPromise = (async () => {
+              const snapshot = await DataService.getAll();
+              db = snapshot || {};
+              dbLastFetchAt = Date.now();
+              saveOfflineSnapshot(db);
+              return db;
+            })();
+            try {
+              return await dbFetchPromise;
+            } finally {
+              dbFetchPromise = null;
+            }
+          }
+
+          const debouncedTitleFilterUpdate = debounce(() => {
+            renderNotes();
+          }, 250);
 
         // Allow toggling items in <select multiple> with simple click (no Ctrl/Cmd needed)
         function enableMultiClickToggle(selectEl) {
@@ -422,12 +503,12 @@
         function getTitle(entry) {
           if (!entry) return '';
           const t = entry.title;
-          if (Array.isArray(t) && t.length) return t.join(' — ');
+          if (Array.isArray(t) && t.length) return t.join(' - ');
           if (typeof t === 'string') return t;
           return '';
         }
 
-        function detailsText(entry) {
+        function computeDetailsIndexText(entry) {
           const d = (entry && entry.dettagli) || {};
           const parts = [];
           const push = (v) => { if (v != null && String(v).trim()) parts.push(String(v)); };
@@ -466,6 +547,15 @@
             push(d.commenti.idee_future);
           }
           return parts.join(' ').toLowerCase();
+        }
+
+        function detailsText(doi, entry) {
+          const key = String(doi || '');
+          const cached = detailsTextCache.get(key);
+          if (cached && cached.entry === entry) return cached.value;
+          const value = computeDetailsIndexText(entry);
+          detailsTextCache.set(key, { entry, value });
+          return value;
         }
 
         // Overlay helpers
@@ -832,12 +922,14 @@
           async function loadAll() {
             const tid = (window.Toast && Toast.loading) ? Toast.loading('Caricamento dati...') : null;
             try {
-              db = await DataService.getAll();
-              if (tid && Toast.update) { Toast.update(tid, 'Dati caricati', 'success'); setTimeout(()=>Toast.dismiss(tid), 800); }
+              const snapshot = await getAllWithCache({ force: true });
+              db = snapshot || {};
+              detailsTextCache.clear();
+              if (tid && Toast.update) { Toast.update(tid, 'Dati caricati', 'success'); setTimeout(() => Toast.dismiss(tid), 800); }
             } catch (e) {
               console.warn('[index] Impossibile caricare dal GAS:', e);
               if (window.Toast && Toast.error) Toast.error('Errore nel caricamento dati');
-              db = {};
+              // Mantieni eventuale snapshot locale già caricato
             }
             computeFacets();
             renderFilters();
@@ -909,6 +1001,7 @@
         }
 
         function renderFilters() {
+          attachAdvGlobalListeners();
           // Build or update the group toggle button
           if (filtersHeader && !groupToggleBtn) {
             groupToggleBtn = document.createElement('button');
@@ -932,7 +1025,10 @@
           updateOrderToggleLabel();
           // Title input
           filterTitleEl.value = filters.title;
-          filterTitleEl.oninput = () => { filters.title = (filterTitleEl.value || '').toLowerCase().trim(); renderNotes(); };
+          filterTitleEl.oninput = () => {
+            filters.title = (filterTitleEl.value || '').toLowerCase().trim();
+            debouncedTitleFilterUpdate();
+          };
 
           // Populate advanced dropdown selects
           function populateMulti(sel, values, selectedSet, groupAlpha, counts, sortByCount){
@@ -1085,8 +1181,6 @@
           ensureTopControls();
 
           advBtn.onclick = (e) => { e.stopPropagation(); advDropdown.classList.toggle('open'); ensureTopControls(); };
-          document.addEventListener('click', (e) => { if (!advDropdown.contains(e.target)) advDropdown.classList.remove('open'); });
-          document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { advDropdown.classList.remove('open'); advMenu.classList.remove('expanded'); } });
 
           // Collapsible filters handling
           const collapsed = loadFiltersCollapsed();
@@ -1379,13 +1473,15 @@
 
         function renderNotes() {
           notesContainer.innerHTML = '';
-          const dois = Object.keys(db);
+          const dois = Object.keys(db || {});
           if (!dois.length) {
+            const frag = document.createDocumentFragment();
             const empty = document.createElement('div');
             empty.textContent = 'Nessuna nota salvata ancora.';
             empty.style.color = '#6b7280';
             empty.style.fontSize = '14px';
-            notesContainer.appendChild(empty);
+            frag.appendChild(empty);
+            notesContainer.appendChild(frag);
             return;
           }
 
@@ -1476,9 +1572,26 @@
           if (groupByFolder) {
             const foldersCollapsed = loadFoldersCollapsed();
 
+            function shouldShowArticle(doi, entry, title) {
+              const query = (filters.title || '').toLowerCase();
+              const matchesText = !query || title.toLowerCase().includes(query) || detailsText(doi, entry).includes(query);
+              if (!matchesText) return false;
+              const notes = Array.isArray(entry.user_notes) ? entry.user_notes : (entry.user_note ? [entry.user_note] : []);
+              notes.sort((a, b) => {
+                const ta = a && a.createdAt ? new Date(a.createdAt).getTime() : 0;
+                const tb = b && b.createdAt ? new Date(b.createdAt).getTime() : 0;
+                return tb - ta;
+              });
+              const visible = notes.filter(n => matchesFilters(entry, n));
+              const count = visible.length;
+              const advancedActive = (filters.types.size || filters.tags.size || filters.animals.size || filters.methods.size);
+              if (advancedActive && count === 0) return false;
+              return true;
+            }
+
             function buildArticleSection(doi, entry, title) {
               const query = (filters.title || '').toLowerCase();
-              const matchesText = !query || title.toLowerCase().includes(query) || detailsText(entry).includes(query);
+              const matchesText = !query || title.toLowerCase().includes(query) || detailsText(doi, entry).includes(query);
               if (!matchesText) return null;
               const notes = Array.isArray(entry.user_notes) ? entry.user_notes : (entry.user_note ? [entry.user_note] : []);
               notes.sort((a, b) => { const ta = a && a.createdAt ? new Date(a.createdAt).getTime() : 0; const tb = b && b.createdAt ? new Date(b.createdAt).getTime() : 0; return tb - ta; });
@@ -1523,7 +1636,7 @@
                 assignFolderBtn.addEventListener('click', async (e)=>{
                   e.stopPropagation();
                   try {
-                    const full = await DataService.getAll();
+                    const full = await getAllWithCache();
                     const base = full[doi] || { DOI: doi };
                     const def = (base && base.cartella) || getLastFolder();
                     const fset = new Set(); try { Object.keys(full||{}).forEach(k => { const v = String((full[k] && full[k].cartella) || '').trim(); if (v) fset.add(v); }); } catch(_){}
@@ -1535,7 +1648,7 @@
                     const actions=document.createElement('div'); actions.style.display='flex'; actions.style.gap='8px'; const saveB=Object.assign(document.createElement('button'), { className:'btn primary', type:'button', textContent:'Salva' }); const clearB=Object.assign(document.createElement('button'), { className:'btn', type:'button', textContent:'Rimuovi' }); const cancelB=Object.assign(document.createElement('button'), { className:'btn', type:'button', textContent:'Annulla' }); actions.appendChild(saveB); actions.appendChild(clearB); actions.appendChild(cancelB); nodes.push(actions); openOverlay('Assegna cartella', nodes);
                     const closeOverlay = ()=>{ try{ const back=document.getElementById('overlayBackdrop'); if (back) back.classList.remove('open'); } catch(_){} };
                     clearB.addEventListener('click', ()=> { inp.value=''; inp.focus(); }); cancelB.addEventListener('click', closeOverlay); inp.addEventListener('keydown', (ev)=>{ if (ev.key==='Enter') saveB.click(); });
-                    saveB.addEventListener('click', async ()=>{ const folder=String(inp.value||'').trim(); const combined=Object.assign({}, base); if (folder){ combined.cartella=folder; setLastFolder(folder); } else { delete combined.cartella; } showLoadingOverlay('Salvataggio cartella...'); try { await DataService.saveRecord(doi, combined); db[doi] = combined; renderNotes(); closeOverlay(); updateLoadingOverlay('Cartella salvata e lista aggiornata'); setTimeout(()=> hideLoadingOverlay(), 700); } catch(err){ console.error('Assegna cartella fallito', err); hideLoadingOverlay(); Toast&&Toast.error&&Toast.error('Errore salvataggio cartella'); alert('Errore durante il salvataggio'); } });
+                    saveB.addEventListener('click', async ()=>{ const folder=String(inp.value||'').trim(); const combined=Object.assign({}, base); if (folder){ combined.cartella=folder; setLastFolder(folder); } else { delete combined.cartella; } showLoadingOverlay('Salvataggio cartella...'); try { await DataService.saveRecord(doi, combined); db[doi] = combined; saveOfflineSnapshot(db); renderNotes(); closeOverlay(); updateLoadingOverlay('Cartella salvata e lista aggiornata'); setTimeout(()=> hideLoadingOverlay(), 700); } catch(err){ console.error('Assegna cartella fallito', err); hideLoadingOverlay(); Toast&&Toast.error&&Toast.error('Errore salvataggio cartella'); alert('Errore durante il salvataggio'); } });
                   } catch (e) { console.error('Assegna cartella init fallito', e); Toast&&Toast.error&&Toast.error('Errore apertura dialog cartella'); }
                 });
                 actions.appendChild(addNoteBtn); actions.appendChild(assignFolderBtn); actions.appendChild(varsBtn);
@@ -1544,8 +1657,11 @@
               if (collapsed) section.classList.add('collapsed');
               applyHeaderLayout(); section.appendChild(header);
               const grid = document.createElement('div'); grid.className = 'notes-grid'; if (collapsed) grid.style.display = 'none';
-              if (count > 0) { for (const note of visible) { const card = createCard(doi, entry, note); grid.appendChild(card); } }
-              else if (!collapsed) { const placeholder=document.createElement('div'); placeholder.textContent='Nessuna nota per questo articolo.'; placeholder.style.color='#6b7280'; placeholder.style.fontSize='14px'; placeholder.style.gridColumn='1 / -1'; grid.appendChild(placeholder); }
+              if (count > 0) {
+                const cardsFrag = document.createDocumentFragment();
+                for (const note of visible) { const card = createCard(doi, entry, note); cardsFrag.appendChild(card); }
+                grid.appendChild(cardsFrag);
+              } else if (!collapsed) { const placeholder=document.createElement('div'); placeholder.textContent='Nessuna nota per questo articolo.'; placeholder.style.color='#6b7280'; placeholder.style.fontSize='14px'; placeholder.style.gridColumn='1 / -1'; grid.appendChild(placeholder); }
               btn.addEventListener('click', (e)=>{ e.stopPropagation(); const nowCollapsed = grid.style.display !== 'none' ? true : false; grid.style.display = nowCollapsed ? 'none' : ''; section.classList.toggle('collapsed', nowCollapsed); btn.textContent = nowCollapsed ? '>' : 'v'; btn.setAttribute('aria-expanded', String(!nowCollapsed)); collapsedMap[doi] = nowCollapsed; saveCollapsed(collapsedMap); applyHeaderLayout(); });
               section.appendChild(grid);
               return section;
@@ -1554,9 +1670,7 @@
             // Build groups only with visible articles (store descriptors, not nodes)
             const groups = new Map();
             sections.forEach(it => {
-              // Reuse builder to know visibility; create nodes later on demand
-              const el = buildArticleSection(it.doi, it.entry, it.title);
-              if (!el) return;
+              if (!shouldShowArticle(it.doi, it.entry, it.title)) return;
               const arr = groups.get(it.folder) || [];
               arr.push({ doi: it.doi, entry: it.entry, title: it.title, sortKey: it.title });
               groups.set(it.folder, arr);
@@ -1572,29 +1686,33 @@
               return az.localeCompare(bz, undefined, {sensitivity:'base'});
             });
             if (names.length === 0) {
-              const empty = document.createElement('div'); empty.textContent = 'Nessun risultato con i filtri correnti.'; empty.style.color = '#6b7280'; empty.style.fontSize = '14px'; notesContainer.appendChild(empty);
+              const fragEmpty = document.createDocumentFragment();
+              const empty = document.createElement('div'); empty.textContent = 'Nessun risultato con i filtri correnti.'; empty.style.color = '#6b7280'; empty.style.fontSize = '14px'; fragEmpty.appendChild(empty); notesContainer.appendChild(fragEmpty);
               return;
             }
 
             // Render folders as desktop-like tiles
+            const frag = document.createDocumentFragment();
             const tiles = document.createElement('div'); tiles.className = 'folders-grid';
             const content = document.createElement('div'); content.id = 'folderContents';
-            notesContainer.appendChild(tiles);
-            notesContainer.appendChild(content);
+            frag.appendChild(tiles);
+            frag.appendChild(content);
 
             let selectedFolder = null;
             function renderFolder(folder){
               selectedFolder = folder;
-              content.innerHTML = '';
               const list = (groups.get(folder) || []).slice().sort((a,b)=> a.sortKey.localeCompare(b.sortKey, undefined, {sensitivity:'base'}));
+              const fragContent = document.createDocumentFragment();
               // Header for contents
               const h = document.createElement('div'); h.className='section-header';
               const title = document.createElement('h2'); title.className='section-title'; title.textContent = `Cartella: ${folder} (${list.length})`;
               const close = document.createElement('button'); close.className='collapse-btn'; close.textContent='Chiudi';
               close.addEventListener('click', ()=> { content.innerHTML=''; selectedFolder=null; });
-              h.appendChild(title); h.appendChild(close); content.appendChild(h);
+              h.appendChild(title); h.appendChild(close); fragContent.appendChild(h);
               // Body
-              list.forEach(it => { const el = buildArticleSection(it.doi, it.entry, it.title); if (el) content.appendChild(el); });
+              list.forEach(it => { const el = buildArticleSection(it.doi, it.entry, it.title); if (el) fragContent.appendChild(el); });
+              content.innerHTML = '';
+              content.appendChild(fragContent);
             }
 
             names.forEach(folder => {
@@ -1609,11 +1727,13 @@
               tile.addEventListener('click', ()=> renderFolder(folder));
               tiles.appendChild(tile);
             });
+            notesContainer.appendChild(frag);
             return; // done grouped rendering
           }
 
           let currentFolder = null;
-          let groupContainer = notesContainer;
+          const fragment = document.createDocumentFragment();
+          let groupContainer = fragment;
           for (const item of sections) {
             const { doi, entry, title, folder } = item;
             if (groupByFolder) {
@@ -1644,11 +1764,11 @@
                 });
               }
             } else {
-              groupContainer = notesContainer;
+              groupContainer = fragment;
             }
             // Filtro testuale: match su titolo o dettagli
             const query = (filters.title || '').toLowerCase();
-            const matchesText = !query || title.toLowerCase().includes(query) || detailsText(entry).includes(query);
+            const matchesText = !query || title.toLowerCase().includes(query) || detailsText(doi, entry).includes(query);
             if (!matchesText) continue;
 
             const notes = Array.isArray(entry.user_notes) ? entry.user_notes : (entry.user_note ? [entry.user_note] : []);
@@ -1807,7 +1927,7 @@
               assignFolderBtn.addEventListener('click', async (e) => {
                 e.stopPropagation();
                 try {
-                  const full = await DataService.getAll();
+                  const full = await getAllWithCache();
                   const base = full[doi] || { DOI: doi };
                   const def = (base && base.cartella) || getLastFolder();
                   // Build existing folders list
@@ -1852,6 +1972,7 @@
                     try {
                       await DataService.saveRecord(doi, combined);
                       db[doi] = combined; // update local cache
+                      saveOfflineSnapshot(db);
                       renderNotes();
                       closeOverlay();
                       updateLoadingOverlay('Cartella salvata e lista aggiornata');
@@ -1887,10 +2008,12 @@
             // Details are not rendered inline; click title to open details popup
 
             if (count > 0) {
+              const cardsFrag = document.createDocumentFragment();
               for (const note of visible) {
                 const card = createCard(doi, entry, note);
-                grid.appendChild(card);
+                cardsFrag.appendChild(card);
               }
+              grid.appendChild(cardsFrag);
             } else if (!collapsed) {
               const placeholder = document.createElement('div');
               placeholder.textContent = 'Nessuna nota per questo articolo.';
@@ -1916,6 +2039,7 @@
             section.appendChild(grid);
             groupContainer.appendChild(section);
           }
+          notesContainer.appendChild(fragment);
         }
 
         async function editNote(doi, note) {
@@ -1939,8 +2063,18 @@
           window.location.href = `details.html?doi=${encodeURIComponent(doi)}`;
         }
 
-        // Initial load
-        loadAll();
+        // Initial load: snapshot locale immediato + sync con GAS
+        (function initialBootstrap() {
+          const offline = loadOfflineSnapshot();
+          if (offline && typeof offline === 'object') {
+            db = offline;
+            detailsTextCache.clear();
+          }
+          computeFacets();
+          renderFilters();
+          renderNotes();
+          loadAll();
+        })();
         if (exportBibtexBtn) {
           exportBibtexBtn.addEventListener('click', (e) => {
             e.preventDefault();

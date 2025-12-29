@@ -244,6 +244,20 @@
           try {
             const doi = (lastMessage.DOI || lastMessage.doi || '').trim();
             if (!doi) throw new Error('Nessun DOI nei metadati');
+
+            try {
+              if (window.DataService && DataService.getByDoi) {
+                const existing = await DataService.getByDoi(doi);
+                if (existing) {
+                  alert('Questo DOI è già presente nel database. Verrà aperta la scheda dettagli.');
+                  window.location.href = `details.html?doi=${encodeURIComponent(doi)}`;
+                  return;
+                }
+              }
+            } catch (checkErr) {
+              console.error('Controllo DOI esistente fallito', checkErr);
+            }
+
             const minimal = minimalRecordFromCrossref(lastMessage);
             showLoadingOverlay('Salvataggio articolo...');
             const tid = Toast ? Toast.loading('Salvataggio in corso...') : null;
