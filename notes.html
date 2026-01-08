@@ -28,6 +28,15 @@
       input[type="text"], input[type="url"], textarea, select { width: 100%; padding: 8px 10px; border: 1px solid #d0d0d0; border-radius: 8px; font-size: 14px; box-sizing: border-box; }
       textarea { resize: vertical; }
       .row { display: grid; gap: 6px; }
+      .steps-panel { display: grid; gap: 16px; }
+      .stepper { display: flex; gap: 8px; flex-wrap: wrap; }
+      .step-pill { padding: 6px 10px; border: 1px solid #d0d0d0; border-radius: 9999px; background: #f8fafc; font-size: 12px; }
+      .step-pill.current { background: #2563eb; color: #fff; border-color: #2563eb; }
+      .step-pill.done { background: #e0f2fe; border-color: #bfdbfe; color: #1e3a8a; }
+      .step { display: none; gap: 12px; }
+      .step.active { display: grid; }
+      .step-title { margin: 0; font-size: 16px; }
+      .steps-nav { display: flex; gap: 8px; align-items: center; justify-content: flex-end; border-top: 1px solid #e5e7eb; padding-top: 12px; }
 
       /* Evidenzia le lettere separatrici nell'elenco dei tag */
       .chip.letter-sep {
@@ -54,17 +63,55 @@
         <div class="sub" id="pageSub"></div>
       </div>
       <div class="toolbar">
-        <a class="btn" href="index.html">← Torna</a>
-        <button id="saveBtn" class="btn primary">Salva nota</button>
+        <a class="btn" href="index.html">< Torna</a>
       </div>
     </div>
 
-    <div class="panel">
-      <div class="grid">
+    <div class="panel steps-panel">
+      <div class="row">
+        <label for="doiSelect">Articolo (DOI)</label>
+        <select id="doiSelect"></select>
+      </div>
+
+      <div class="stepper" aria-label="Passaggi compilazione">
+        <div class="step-pill current" data-step="1">1. Testo</div>
+        <div class="step-pill" data-step="2">2. Tipo & tag</div>
+        <div class="step-pill" data-step="3">3. Dettagli</div>
+      </div>
+
+      <div class="step active" data-step="1">
+        <h2 class="step-title">Step 1 - Testo e importanza</h2>
         <div class="row">
-          <label for="doiSelect">Articolo (DOI)</label>
-          <select id="doiSelect"></select>
+          <label for="noteText">Testo nota</label>
+          <div class="grid-1">
+            <label style="display:inline-flex; align-items:center; gap:8px; font-weight: normal;">
+              <input id="extractToggle" type="checkbox" checked />
+              Estrai testo da URL
+            </label>
+            <textarea id="noteText" rows="6" placeholder="Verrà estratto dal parametro #:~:text dell'URL" readonly></textarea>
+          </div>
         </div>
+        <div class="row">
+          <label for="commentInput">Commento</label>
+          <textarea id="commentInput" rows="2" placeholder="Commento aggiuntivo..."></textarea>
+        </div>
+        <div class="grid">
+          <div class="row">
+            <label for="importanceRange">Importanza (1-10)</label>
+            <div style="display:flex; align-items:center; gap:8px;">
+              <input id="importanceRange" type="range" min="1" max="10" step="1" value="1" style="flex:1;" />
+              <input id="importanceNumber" type="number" min="1" max="10" step="1" value="1" style="width:70px;" />
+            </div>
+          </div>
+          <div class="row">
+            <label>Anteprima colore</label>
+            <div id="importancePreview" style="height:36px; border-radius:8px; border:1px solid #d0d0d0;"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="step" data-step="2">
+        <h2 class="step-title">Step 2 - Tipo, tag e animali</h2>
         <div class="row">
           <label for="typeInput">Tipo</label>
           <input id="typeInput" type="text" list="typeList" placeholder="es. commento, riassunto, to-do" />
@@ -79,88 +126,66 @@
           <select id="typeSelect"></select>
           <div id="typeChips" class="chips" style="margin-top:6px;"></div>
         </div>
-      </div>
-
-      <div class="grid">
-        <div class="row">
-          <label for="tagsInput">Tag (separati da virgola)</label>
-          <input id="tagsInput" type="text" placeholder="es. energy, ecology, hydropower" />
-          <div id="tagChips" class="chips" style="margin-top:6px;"></div>
-        </div>
-        <div class="row">
-          <label for="animalsInput">Animali (separati da virgola)</label>
-          <input id="animalsInput" type="text" placeholder="es. lupo, orso, lince" />
-          <select id="animalsSelect"></select>
-          <div id="animalChips" class="chips" style="margin-top:6px;"></div>
-        </div>
-      </div>
-
-      <div class="grid">
-        <div class="row">
-          <label for="urlInput">URL (con selezione testo)</label>
-          <input id="urlInput" type="url" placeholder="https://...#:~:text=..." />
-        </div>
-        <div class="row">
-          <label for="imageUrlInput">URL immagine</label>
-          <input id="imageUrlInput" type="url" placeholder="https://.../image.png" />
-        </div>
-      </div>
-
-      <div class="grid">
-        <div class="row">
-          <label for="importanceRange">Importanza (1–10)</label>
-          <div style="display:flex; align-items:center; gap:8px;">
-            <input id="importanceRange" type="range" min="1" max="10" step="1" value="1" style="flex:1;" />
-            <input id="importanceNumber" type="number" min="1" max="10" step="1" value="1" style="width:70px;" />
+        <div class="grid">
+          <div class="row">
+            <label for="tagsInput">Tag (separati da virgola)</label>
+            <input id="tagsInput" type="text" placeholder="es. energy, ecology, hydropower" />
+            <div id="tagChips" class="chips" style="margin-top:6px;"></div>
+          </div>
+          <div class="row">
+            <label for="animalsInput">Animali (separati da virgola)</label>
+            <input id="animalsInput" type="text" placeholder="es. lupo, orso, lince" />
+            <select id="animalsSelect"></select>
+            <div id="animalChips" class="chips" style="margin-top:6px;"></div>
           </div>
         </div>
-        <div class="row">
-          <label>Anteprima colore</label>
-          <div id="importancePreview" style="height:36px; border-radius:8px; border:1px solid #d0d0d0;"></div>
-        </div>
       </div>
 
-      <div class="row">
-        <label for="referencesInput">References (DOI; separati da ;)</label>
-        <input id="referencesInput" type="text" placeholder="es. 10.1038/nphys1170; 10.1016/j.ecolmodel.2018.01.012" />
-        <div class="sub">Suggerimento formato: 10.xxxx/..... Accetta anche https://doi.org/... o doi:...</div>
-      </div>
-
-      <div class="row">
-        <label for="commentInput">Commento</label>
-        <textarea id="commentInput" rows="2" placeholder="Commento aggiuntivo..."></textarea>
-      </div>
-
-      <!-- Glossario (opzionale, supporta più termini) -->
-      <div class="row">
-        <details id="glossaryBox">
-          <summary style="cursor:pointer; user-select:none;">
-            <label style="display:inline-flex; align-items:center; gap:8px; font-weight: normal;">
-              <input id="glossaryEnabled" type="checkbox" />
-              Glossario (opzionale)
-            </label>
-          </summary>
+      <div class="step" data-step="3">
+        <h2 class="step-title">Step 3 - Dettagli aggiuntivi</h2>
+        <div class="grid">
           <div class="row">
-            <div style="display:flex; align-items:center; gap:8px;">
-              <button id="addGlossaryRow" class="btn" type="button">+ Aggiungi termine</button>
+            <label for="urlInput">URL (con selezione testo)</label>
+            <input id="urlInput" type="url" placeholder="https://...#:~:text=..." />
+          </div>
+          <div class="row">
+            <label for="imageUrlInput">URL immagine</label>
+            <input id="imageUrlInput" type="url" placeholder="https://.../image.png" />
+          </div>
+        </div>
+
+        <div class="row">
+          <label for="referencesInput">References (DOI; separati da ;)</label>
+          <input id="referencesInput" type="text" placeholder="es. 10.1038/nphys1170; 10.1016/j.ecolmodel.2018.01.012" />
+          <div class="sub">Suggerimento formato: 10.xxxx/..... Accetta anche https://doi.org/... o doi:...</div>
+        </div>
+
+        <!-- Glossario (opzionale, supporta più termini) -->
+        <div class="row">
+          <details id="glossaryBox">
+            <summary style="cursor:pointer; user-select:none;">
+              <label style="display:inline-flex; align-items:center; gap:8px; font-weight: normal;">
+                <input id="glossaryEnabled" type="checkbox" />
+                Glossario (opzionale)
+              </label>
+            </summary>
+            <div class="row">
+              <div style="display:flex; align-items:center; gap:8px;">
+                <button id="addGlossaryRow" class="btn" type="button">+ Aggiungi termine</button>
+              </div>
             </div>
-          </div>
-          <div id="glossaryList" class="grid-1"></div>
-          <div class="row">
-            <div style="font-size:12px; color:#6b7280;">Le voci saranno legate a DOI, Tipo, Tag e Importanza impostati sopra.</div>
-          </div>
-        </details>
+            <div id="glossaryList" class="grid-1"></div>
+            <div class="row">
+              <div style="font-size:12px; color:#6b7280;">Le voci saranno legate a DOI, Tipo, Tag e Importanza impostati sopra.</div>
+            </div>
+          </details>
+        </div>
       </div>
 
-      <div class="row">
-        <label for="noteText">Testo nota</label>
-        <div class="grid-1">
-          <label style="display:inline-flex; align-items:center; gap:8px; font-weight: normal;">
-            <input id="extractToggle" type="checkbox" checked />
-            Estrai testo da URL
-          </label>
-          <textarea id="noteText" rows="6" placeholder="Verrà estratto dal parametro #:~:text dell'URL" readonly></textarea>
-        </div>
+      <div class="steps-nav">
+        <button id="prevStepBtn" class="btn" type="button">Indietro</button>
+        <button id="nextStepBtn" class="btn" type="button">Avanti</button>
+        <button id="saveBtn" class="btn primary" type="button">Salva nota</button>
       </div>
     </div>
 
@@ -180,10 +205,39 @@
         const referencesInput = document.getElementById('referencesInput');
         const noteText = document.getElementById('noteText');
         const extractToggle = document.getElementById('extractToggle');
+        const steps = Array.from(document.querySelectorAll('.step'));
+        const stepPills = Array.from(document.querySelectorAll('.step-pill'));
+        const prevStepBtn = document.getElementById('prevStepBtn');
+        const nextStepBtn = document.getElementById('nextStepBtn');
+        let currentStep = 1;
         // Glossario (multi-rows)
         const glossaryEnabled = document.getElementById('glossaryEnabled');
         const glossaryList = document.getElementById('glossaryList');
         const addGlossaryRow = document.getElementById('addGlossaryRow');
+
+        function updateStepUI(){
+          steps.forEach(step => {
+            const s = Number(step.dataset.step || '0');
+            step.classList.toggle('active', s === currentStep);
+          });
+          stepPills.forEach(pill => {
+            const s = Number(pill.dataset.step || '0');
+            pill.classList.toggle('current', s === currentStep);
+            pill.classList.toggle('done', s < currentStep);
+          });
+          if (prevStepBtn) prevStepBtn.disabled = currentStep === 1;
+          if (nextStepBtn) {
+            nextStepBtn.disabled = currentStep === steps.length;
+            nextStepBtn.textContent = currentStep === steps.length ? 'Rivedi' : 'Avanti';
+          }
+        }
+
+        function goToStep(n){
+          if (!steps.length) return;
+          currentStep = Math.max(1, Math.min(steps.length, n));
+          updateStepUI();
+          try { window.scrollTo({ top: 0, behavior: 'smooth' }); } catch(_) {}
+        }
 
         function addGlossRow(data={}){
           const row = document.createElement('div');
@@ -554,6 +608,7 @@
             applyToggleState();
             noteText.value = n.text || '';
           }
+        }
           // Prefill glossary rows linked to this note
           try {
             if (glossaryList) glossaryList.innerHTML = '';
@@ -686,6 +741,14 @@
           });
         }
 
+        if (prevStepBtn) prevStepBtn.addEventListener('click', () => goToStep(currentStep - 1));
+        if (nextStepBtn) nextStepBtn.addEventListener('click', () => goToStep(currentStep + 1));
+        stepPills.forEach(p => {
+          p.addEventListener('click', () => {
+            const target = Number(p.dataset.step || '1');
+            goToStep(target);
+          });
+        });
         saveBtn.addEventListener('click', save);
 
         // Enhance tags select: show counts and color intensity like index filters
@@ -763,6 +826,7 @@
         }
 
         applyToggleState();
+        goToStep(1);
         // Init importance controls
         importanceRange.value = 1;
         importanceNumber.value = 1;
@@ -772,3 +836,11 @@
     </script>
   </body>
   </html>
+
+
+
+
+
+
+
+
